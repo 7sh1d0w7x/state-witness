@@ -1,0 +1,39 @@
+<svg width="800" height="200" viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="state-witness">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1120"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="200" fill="url(#bg)"/>
+
+  <!-- grid -->
+  <g stroke="#1e293b" stroke-width="1" opacity="0.5">
+    <path d="M0 40 H800 M0 80 H800 M0 120 H800 M0 160 H800"/>
+    <path d="M80 0 V200 M160 0 V200 M240 0 V200 M320 0 V200 M400 0 V200 M480 0 V200 M560 0 V200 M640 0 V200 M720 0 V200"/>
+  </g>
+
+  <!-- shield/seal icon -->
+  <g transform="translate(64,50)">
+    <path d="M40 0 L80 14 V48 C80 78 40 96 40 96 C40 96 0 78 0 48 V14 Z"
+          fill="none" stroke="url(#accent)" stroke-width="3"/>
+    <path d="M25 46 L37 58 L58 32" fill="none" stroke="#38bdf8" stroke-width="4"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- title -->
+  <text x="190" y="92" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="52" font-weight="700" fill="#f8fafc">state-witness</text>
+  <text x="192" y="126" font-family="ui-monospace, monospace"
+        font-size="17" fill="#94a3b8">effective-state Linux security audit · with provenance</text>
+  <text x="192" y="152" font-family="ui-monospace, monospace"
+        font-size="14" fill="#64748b">CI-ready JSON / SARIF · atomic-native · EU (CRA)</text>
+
+  <!-- corner accent -->
+  <rect x="0" y="0" width="6" height="200" fill="url(#accent)"/>
+</svg>

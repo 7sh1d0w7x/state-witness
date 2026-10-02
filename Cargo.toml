@@ -1,0 +1,18 @@
+[package]
+name = "state-witness"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.88"
+description = "Effective-state Linux security audit with provenance (not static config)"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/zShaD0w7x/state-witness"
+keywords = ["linux", "security", "audit", "hardening", "compliance"]
+categories = ["command-line-utilities", "os::linux-apis"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "SSH-001",
+    "title": "PermitRootLogin",
+    "status": "warn",
+    "value": "prohibit-password",
+    "provenance": {
+      "path": "(effective, sshd -T)",
+      "line": null
+    }
+  },
+  {
+    "id": "SSH-002",
+    "title": "PasswordAuthentication",
+    "status": "fail",
+    "value": "yes",
+    "provenance": {
+      "path": "(effective, sshd -T)",
+      "line": null
+    }
+  }
+]
