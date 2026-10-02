@@ -3,16 +3,16 @@
   "entity": {
     "type": "individual",
     "role": "maintainer",
-    "name": "Raul (zShaD0w7x)",
+    "name": "Raul (7sh1d0w7x)",
     "email": "",
     "description": "Solo developer building Linux security tooling. AuDHD, async-first."
   },
   "funding": {
     "channels": [
       {
-        "guid": "github:zShaD0w7x",
+        "guid": "github:7sh1d0w7x",
         "type": "github",
-        "address": "https://github.com/sponsors/zShaD0w7x",
+        "address": "https://github.com/sponsors/7sh1d0w7x",
         "description": "GitHub Sponsors"
       }
     ]
@@ -22,8 +22,8 @@
       "guid": "state-witness",
       "name": "state-witness",
       "description": "Effective-state Linux security audit with provenance. Reports what the kernel and daemons actually enforce right now (not what the config file says), with which file+line set it.",
-      "webpageUrl": { "url": "https://github.com/zShaD0w7x/state-witness" },
-      "repositoryUrl": { "url": "https://github.com/zShaD0w7x/state-witness" },
+      "webpageUrl": { "url": "https://github.com/7sh1d0w7x/state-witness" },
+      "repositoryUrl": { "url": "https://github.com/7sh1d0w7x/state-witness" },
       "licenses": ["spdx:MIT", "spdx:Apache-2.0"],
       "tags": ["linux", "security", "audit", "hardening", "compliance", "rust", "cli"],
       "categories": ["developer-tools", "security"]
