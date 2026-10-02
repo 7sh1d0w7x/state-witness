@@ -1,0 +1,4 @@
+! PermitRootLogin: prohibit-password
+  └─ from (effective, sshd -T)
+✗ PasswordAuthentication: yes
+  └─ from (effective, sshd -T)

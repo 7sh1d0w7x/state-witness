@@ -1,0 +1,16 @@
+# intern — NU se urcă public
+internal/
+
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# notes de învățare (intern)
+NOTES-LEARNING.md
+
+# reguli interne
+AGENTS.md
+
+# spec intern
+SPEC.md
