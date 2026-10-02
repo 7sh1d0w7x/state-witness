@@ -161,8 +161,11 @@ pub fn ssh_effective() -> Vec<Finding> {
 pub struct Deployment {
     pub image: Option<String>,
     pub version: Option<String>,
-    pub signed: bool,
+    /// `Some(true)` signed, `Some(false)` unsigned, `None` unknown.
+    pub signed: Option<bool>,
     pub pinned: bool,
+    /// Command this came from (effective provenance).
+    pub source: String,
 }
 
 /// Parse `rpm-ostree status` text into deployment facts (pure; testable).
@@ -197,10 +200,11 @@ pub fn parse_rpm_ostree_status(text: &str) -> Option<Deployment> {
             cur = Some(Deployment {
                 // "ostree-image-signed:" / "ostree-unverified-registry:" are
                 // container-image deployments; the prefix records signature state.
-                signed: cleaned.starts_with("ostree-image-signed:"),
+                signed: Some(cleaned.starts_with("ostree-image-signed:")),
                 image: Some(cleaned.to_string()),
                 version: None,
                 pinned: false,
+                source: "(effective, rpm-ostree status)".to_string(),
             });
             continue;
         }
@@ -209,7 +213,7 @@ pub fn parse_rpm_ostree_status(text: &str) -> Option<Deployment> {
             if let Some(v) = cleaned.strip_prefix("Version:") {
                 d.version = Some(v.trim().to_string());
             } else if let Some(v) = cleaned.strip_prefix("GPGSignature:") {
-                d.signed = v.trim().to_ascii_lowercase().starts_with("valid");
+                d.signed = Some(v.trim().to_ascii_lowercase().starts_with("valid"));
             } else if let Some(v) = cleaned.strip_prefix("Pinned:") {
                 d.pinned = v.trim().eq_ignore_ascii_case("yes");
             }
@@ -223,6 +227,46 @@ pub fn parse_rpm_ostree_status(text: &str) -> Option<Deployment> {
         Some((_, d)) => Some(d.clone()),
         None => deployments.first().map(|(_, d)| d.clone()),
     }
+}
+
+/// Parse `bootc status --json` output into deployment facts (pure; testable).
+///
+/// Schema (org.containers.bootc): `status.booted.image.image.image` is the
+/// image ref, `status.booted.image.version` the version, `status.booted.pinned`
+/// the pin flag. Signature state is only reported when present.
+pub fn parse_bootc_status_json(text: &str) -> Option<Deployment> {
+    let v: serde_json::Value = serde_json::from_str(text).ok()?;
+    let booted = &v["status"]["booted"];
+    if booted.is_null() {
+        return None;
+    }
+    let img = &booted["image"];
+    let image = img["image"]["image"].as_str().map(String::from);
+    let version = img["version"].as_str().map(String::from);
+    let pinned = booted["pinned"].as_bool().unwrap_or(false);
+    // Optional: some versions expose a signature status object/string.
+    let signed = img
+        .get("signature")
+        .and_then(|s| {
+            s.get("status")
+                .and_then(|x| x.as_str())
+                .or_else(|| s.as_str())
+        })
+        .map(|s| {
+            let l = s.to_ascii_lowercase();
+            l.contains("signed") && !l.contains("un")
+        });
+
+    if image.is_none() && version.is_none() {
+        return None;
+    }
+    Some(Deployment {
+        image,
+        version,
+        signed,
+        pinned,
+        source: "(effective, bootc status --json)".to_string(),
+    })
 }
 
 /// Parse `ostree admin config-diff` output into a list of drifted `/etc` paths.
@@ -274,44 +318,65 @@ pub fn ostree_effective() -> Vec<Finding> {
     };
     let mut findings = Vec::new();
 
-    // Deployment facts from `rpm-ostree status`.
-    if let Ok(out) = std::process::Command::new("rpm-ostree")
+    // Deployment facts: prefer `rpm-ostree status`, fall back to `bootc status`.
+    let deployment: Option<Deployment> = std::process::Command::new("rpm-ostree")
         .arg("status")
         .output()
-    {
-        if out.status.success() {
-            let text = String::from_utf8_lossy(&out.stdout);
-            if let Some(d) = parse_rpm_ostree_status(&text) {
-                let mut f = Finding::pass(
-                    "OSTREE-001",
-                    "Deployment",
-                    d.image.clone().unwrap_or_else(|| "unknown".into()),
-                );
-                f.provenance = provenance("(effective, rpm-ostree status)");
-                findings.push(f);
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| parse_rpm_ostree_status(&String::from_utf8_lossy(&o.stdout)))
+        .or_else(|| {
+            std::process::Command::new("bootc")
+                .args(["status", "--json"])
+                .output()
+                .ok()
+                .filter(|o| o.status.success())
+                .and_then(|o| parse_bootc_status_json(&String::from_utf8_lossy(&o.stdout)))
+        });
 
-                let mut sig = if d.signed {
-                    Finding::pass("OSTREE-002", "Deployment signature", "valid")
-                } else {
-                    Finding::warn(
-                        "OSTREE-002",
-                        "Deployment signature",
-                        "unverified (no valid GPG signature)",
-                    )
-                };
-                sig.provenance = provenance("(effective, rpm-ostree status)");
+    if let Some(d) = deployment {
+        let mut f = Finding::pass(
+            "OSTREE-001",
+            "Deployment",
+            d.image.clone().unwrap_or_else(|| "unknown".into()),
+        );
+        f.provenance = provenance(&d.source);
+        findings.push(f);
+
+        match d.signed {
+            Some(true) => {
+                let mut sig = Finding::pass("OSTREE-002", "Deployment signature", "valid");
+                sig.provenance = provenance(&d.source);
                 findings.push(sig);
-
-                if d.pinned {
-                    let mut p = Finding::warn(
-                        "OSTREE-003",
-                        "Deployment pinned",
-                        "pinned to this version (rollback target)",
-                    );
-                    p.provenance = provenance("(effective, rpm-ostree status)");
-                    findings.push(p);
-                }
             }
+            Some(false) => {
+                let mut sig = Finding::warn(
+                    "OSTREE-002",
+                    "Deployment signature",
+                    "unverified (no valid signature)",
+                );
+                sig.provenance = provenance(&d.source);
+                findings.push(sig);
+            }
+            None => {
+                let mut sig = Finding::skip(
+                    "OSTREE-002",
+                    "Deployment signature",
+                    "unknown (not reported by this tool/version)",
+                );
+                sig.provenance = provenance(&d.source);
+                findings.push(sig);
+            }
+        }
+
+        if d.pinned {
+            let mut p = Finding::warn(
+                "OSTREE-003",
+                "Deployment pinned",
+                "pinned to this version (rollback target)",
+            );
+            p.provenance = provenance(&d.source);
+            findings.push(p);
         }
     }
 
@@ -402,7 +467,7 @@ Deployments:
             d.version.as_deref(),
             Some("41.20241020.0 (2024-10-20T00:31:29Z)")
         );
-        assert!(d.signed);
+        assert_eq!(d.signed, Some(true));
         assert!(d.pinned);
     }
 
@@ -419,7 +484,7 @@ Deployments:
             d.image.as_deref(),
             Some("ostree-unverified-registry:ghcr.io/ublue-os/bazzite:stable")
         );
-        assert!(!d.signed);
+        assert_eq!(d.signed, Some(false));
         assert!(!d.pinned);
     }
 
@@ -437,7 +502,7 @@ Deployments:
 ";
         let d = parse_rpm_ostree_status(sample).expect("should parse");
         // container-image signature prefix counts as signed
-        assert!(d.signed);
+        assert_eq!(d.signed, Some(true));
         // the booted (●) deployment is preferred
         assert_eq!(
             d.version.as_deref(),
@@ -448,6 +513,38 @@ Deployments:
     #[test]
     fn parse_status_rejects_non_deployment_text() {
         assert!(parse_rpm_ostree_status("random text\nwith no keys").is_none());
+    }
+
+    #[test]
+    fn parses_bootc_status_json() {
+        let sample = r#"{
+    "apiVersion":"org.containers.bootc/v1",
+    "kind":"BootcHost",
+    "status":{
+        "staged": null,
+        "booted":{
+            "image":{
+                "image":{"image":"quay.io/fedora/fedora-bootc:41","transport":"registry"},
+                "version":"41.20241020.0",
+                "timestamp": null
+            },
+            "incompatible":false,
+            "pinned":true
+        }
+    }
+}"#;
+        let d = parse_bootc_status_json(sample).expect("should parse");
+        assert_eq!(d.image.as_deref(), Some("quay.io/fedora/fedora-bootc:41"));
+        assert_eq!(d.version.as_deref(), Some("41.20241020.0"));
+        assert!(d.pinned);
+        assert_eq!(d.signed, None); // not reported in this schema version
+        assert!(d.source.contains("bootc"));
+    }
+
+    #[test]
+    fn bootc_json_without_booted_returns_none() {
+        let sample = r#"{"status":{"staged":null,"booted":null}}"#;
+        assert!(parse_bootc_status_json(sample).is_none());
     }
 
     #[test]
