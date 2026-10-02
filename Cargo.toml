@@ -3,9 +3,9 @@ name = "state-witness"
 version = "0.0.1"
 edition = "2021"
 rust-version = "1.88"
-description = "Effective-state Linux security audit with provenance (not static config)"
+description = "Effective-state security audit for immutable/atomic Linux (ostree, bootc) with provenance"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/zShaD0w7x/state-witness"
+repository = "https://github.com/7sh1d0w7x/state-witness"
 keywords = ["linux", "security", "audit", "hardening", "compliance"]
 categories = ["command-line-utilities", "os::linux-apis"]
 
