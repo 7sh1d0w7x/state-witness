@@ -7,6 +7,9 @@ Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `atomic` command: immutable/atomic host (ostree, bootc) detection + deployment facts (image, signature, pin) from `rpm-ostree status`, plus `/etc` drift via `ostree admin config-diff`.
+
 ### Planned
 - More checks (firewall, kernel hardening, users/sudo, permissions, updates, TLS, logging, network)
 - Evidence mode (compliance report)

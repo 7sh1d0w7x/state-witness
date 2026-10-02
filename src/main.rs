@@ -2,15 +2,15 @@
 
 use clap::{Parser, Subcommand};
 
-use state_witness::{ssh_effective, Status};
+use state_witness::{ostree_effective, ssh_effective, Finding, Status};
 
 #[derive(Parser)]
 #[command(
     name = "state-witness",
     version,
-    about = "Effective-state Linux security audit with provenance",
-    long_about = "Reports what the kernel and daemons actually enforce right now \
-                  (not what the config file says), with provenance."
+    about = "Effective-state security audit for immutable Linux (ostree, bootc)",
+    long_about = "Reports what the host actually enforces (not what the config file says) \
+                  and understands ostree/bootc deployments — with provenance."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -25,42 +25,55 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Check immutable/atomic host state (ostree, bootc): deployment + /etc drift.
+    Atomic {
+        /// Output as JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Show version / status.
     Version,
+}
+
+/// Print findings as text; return true if any finding failed.
+fn print_text(findings: &[Finding]) -> bool {
+    let mut failed = false;
+    for f in findings {
+        let mark = match f.status {
+            Status::Pass => "\u{2713}", // ✓
+            Status::Warn => "!",        // !
+            Status::Fail => "\u{2717}", // ✗
+            Status::Skip => "\u{2013}", // –
+        };
+        println!("{mark} {}: {}", f.title, f.value.as_deref().unwrap_or("?"));
+        if let Some(p) = &f.provenance {
+            println!("  \u{2514}\u{2500} from {}", p.path);
+        }
+        if f.status == Status::Fail {
+            failed = true;
+        }
+    }
+    failed
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    match cli.command {
-        Command::Ssh { json } => {
-            let findings = ssh_effective();
-            if json {
-                println!("{}", serde_json::to_string_pretty(&findings).unwrap());
-                return;
-            }
-            let mut failed = false;
-            for f in &findings {
-                let mark = match f.status {
-                    Status::Pass => "\u{2713}", // ✓
-                    Status::Warn => "!",        // !
-                    Status::Fail => "\u{2717}", // ✗
-                    Status::Skip => "\u{2013}", // –
-                };
-                println!("{mark} {}: {}", f.title, f.value.as_deref().unwrap_or("?"));
-                if let Some(p) = &f.provenance {
-                    println!("  \u{2514}\u{2500} from {}", p.path);
-                }
-                if f.status == Status::Fail {
-                    failed = true;
-                }
-            }
-            if failed {
-                std::process::exit(1);
-            }
-        }
+    let (findings, json) = match cli.command {
+        Command::Ssh { json } => (ssh_effective(), json),
+        Command::Atomic { json } => (ostree_effective(), json),
         Command::Version => {
             println!("state-witness {}", env!("CARGO_PKG_VERSION"));
+            return;
         }
+    };
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&findings).unwrap());
+        return;
+    }
+
+    if print_text(&findings) {
+        std::process::exit(1);
     }
 }
