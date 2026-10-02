@@ -13,9 +13,11 @@
 
 # state-witness
 
-> **Is my host actually secure — and can I prove it?** Effective-state Linux security audit with provenance.
+> **The effective-state security auditor built for immutable Linux.** — Fedora Atomic, Bazzite, and `bootc` / RHEL Image Mode.
 
-> **Linux host security audit + CRA/NIS2 compliance evidence CLI.** Reports your **effective runtime security state** — not static config — with **provenance** (which file + line) and **machine-readable evidence** (JSON/SARIF) for audits and CI. Native support for **atomic/ostree** hosts (Fedora, Bazzite).
+> Reports what your host **actually enforces** — with **deployment provenance** — not what a config file claims. **Native Rust, single static binary, no CINC/Ruby engine.**
+>
+> Existing tools read the file; attackers read the drop-in. `state-witness` reads the resolved runtime state (`sshd -T`, `sysctl`, `systemctl show`, `auditctl -l`) and understands ostree/`bootc` deployments (immutable `/usr`, `/etc` drift, signed commits).
 
 **Status:** v0.0.1 (scaffold; `ssh` check working) · **Changelog:** `CHANGELOG.md`
 
@@ -45,10 +47,21 @@ Existing tools (Lynis, OpenSCAP) audit *what the config file says*. `state-witne
 - 🛡️ **Safe** — read-only by default; remediation via drop-ins with rollback
 - ⚖️ **Legally clean** — maps to NIST / CRA / BSI; never ships CIS content
 
+## Why atomic/ostree matters
+
+Immutable/atomic hosts (Fedora Atomic, Bazzite, `bootc`/RHEL Image Mode, Universal Blue) are the fastest-growing part of the Linux fleet — and the least audited:
+
+- **`/usr` is read-only** (managed by `rpm-ostree`/`bootc`); tools that probe or remediate via `dnf` break.
+- **Config layering** — a 3-way merge of `/usr/etc` → `/etc` means the "effective" file may not be where a scanner looks.
+- **Deployments are signed and versioned** — a provenance goldmine almost no audit tool consumes.
+- Most scanners either **fail** here or **silently misdetect** the host and produce a confident-but-wrong grade.
+
+`state-witness` treats the atomic deployment as a **first-class fact**: which deployment you're on, whether it's signed, what `/etc` drift exists, and whether the enforced service state is consistent — in one native binary, with no external engine.
+
 ## Install
 ```bash
 # from source (works today)
-git clone https://github.com/zShaD0w7x/state-witness
+git clone https://github.com/7sh1d0w7x/state-witness
 cd state-witness
 cargo build --release
 sudo ./target/release/state-witness ssh
