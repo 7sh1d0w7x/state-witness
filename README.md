@@ -58,6 +58,22 @@ Immutable/atomic hosts (Fedora Atomic, Bazzite, `bootc`/RHEL Image Mode, Univers
 
 `state-witness` treats the atomic deployment as a **first-class fact**: which deployment you're on, whether it's signed, what `/etc` drift exists, and whether the enforced service state is consistent — in one native binary, with no external engine.
 
+### How it compares
+
+| Capability | `state-witness` | Lynis | OpenSCAP |
+|---|---|---|---|
+| Reads **effective** runtime state (`sshd -T`, `sysctl -n`, live sockets) | ✅ | partial (mostly files) | ❌ (file content) |
+| **Provenance** — which file **and line** set the value | ✅ | ❌ | ❌ |
+| **Atomic/ostree/bootc-aware** (read-only `/usr`, deploy detection) | ✅ | ❌ (probes `dnf`) | ❌ (assumes mutable host) |
+| Detects **`/etc` drift** on atomic hosts | ✅ | ❌ | ❌ |
+| Signed-deployment / provenance facts | ✅ | ❌ | partial |
+| Output formats | text · JSON · SARIF *(planned)* | text · log | XML · HTML · ARF |
+| Runtime | single **static Rust** binary (no engine) | Bash + rule files | Python/`oscap` engine |
+| Remediation | drop-in `--plan/--apply` + rollback *(planned)* | manual | remediate via `oscap` |
+| Compliance mapping | NIST / CRA / BSI *(planned)* | built-in profiles | SCAP profiles (authoritative) |
+
+**Read this honestly:** OpenSCAP is the reference for formal SCAP/compliance content; Lynis is the veteran for broad, file-based hardening checks. Neither treats an **immutable/atomic host as a first-class citizen** — that is the gap `state-witness` targets, and it complements them rather than replacing them.
+
 ## Install
 ```bash
 # from source (works today)
@@ -106,4 +122,4 @@ Collect once, assert many. Probes testable against recorded fixtures; rules test
 MIT OR Apache-2.0 (Rust convention).
 
 ---
-*Research: `../../strategy/research/project-direction-2026.md` · Design brief (29 sep 2026)*
+*Research: `../../strategy/research/proiecte/project-direction-2026.md` · Design brief (29 sep 2026)*
