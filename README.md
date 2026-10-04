@@ -106,6 +106,8 @@ sudo state-witness ssh --json
 ## What it checks (MVP, 12)
 SSH effective auth + crypto · sysctl effective vs persisted · firewall effective ruleset · listening sockets · file capabilities · SUID/SGID · SELinux/AppArmor enforcement · systemd service hardening · audit subsystem · users & sudo · kernel protections · atomic `/etc` drift.
 
+📄 **[`docs/CHECKS.md`](docs/CHECKS.md)** — full list with implementation status · **[`docs/DESIGN.md`](docs/DESIGN.md)** — architecture and design rationale.
+
 ## Design in one screen
 ```
 Fact     = typed value + provenance(path,line) + access(Root|Unprivileged|Cap)
