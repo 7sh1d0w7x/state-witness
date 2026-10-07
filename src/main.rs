@@ -2,7 +2,10 @@
 
 use clap::{Parser, Subcommand};
 
-use state_witness::{ostree_effective, ssh_effective, Finding, Status};
+use state_witness::{
+    firewall_effective, ostree_effective, ssh_effective, sysctl_effective, users_effective,
+    Finding, Status,
+};
 
 #[derive(Parser)]
 #[command(
@@ -27,6 +30,24 @@ enum Command {
     },
     /// Check immutable/atomic host state (ostree, bootc): deployment + /etc drift.
     Atomic {
+        /// Output as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Check effective kernel parameters (sysctl): runtime hardening knobs.
+    Sysctl {
+        /// Output as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Check the effective firewall (nftables / ufw / firewalld).
+    Firewall {
+        /// Output as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Check users & sudo (uid-0 accounts, NOPASSWD, empty passwords).
+    Users {
         /// Output as JSON.
         #[arg(long)]
         json: bool,
@@ -62,6 +83,9 @@ fn main() {
     let (findings, json) = match cli.command {
         Command::Ssh { json } => (ssh_effective(), json),
         Command::Atomic { json } => (ostree_effective(), json),
+        Command::Sysctl { json } => (sysctl_effective(), json),
+        Command::Firewall { json } => (firewall_effective(), json),
+        Command::Users { json } => (users_effective(), json),
         Command::Version => {
             println!("state-witness {}", env!("CARGO_PKG_VERSION"));
             return;

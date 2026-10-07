@@ -412,6 +412,264 @@ pub fn ostree_effective() -> Vec<Finding> {
     findings
 }
 
+/// Run the sysctl effective-state checks.
+///
+/// Reads the *runtime* kernel parameters via `sysctl -n <key>` (what the kernel
+/// actually enforces now), not the on-disk config, and reports the key knobs.
+///
+/// A mismatch is reported as `Fail`; an unreadable/missing key as `Skip`.
+pub fn sysctl_effective() -> Vec<Finding> {
+    // (sysctl key, finding id, title, expected-good value)
+    let checks: &[(&str, &str, &str, &str)] = &[
+        ("net.ipv4.ip_forward", "SYS-001", "IP forwarding", "0"),
+        (
+            "kernel.randomize_va_space",
+            "SYS-002",
+            "ASLR (randomize_va_space)",
+            "2",
+        ),
+        (
+            "net.ipv4.conf.all.rp_filter",
+            "SYS-003",
+            "Reverse-path filtering",
+            "1",
+        ),
+        ("kernel.dmesg_restrict", "SYS-004", "dmesg restrict", "1"),
+    ];
+
+    let mut findings = Vec::new();
+
+    for (key, id, title, good) in checks {
+        let output = std::process::Command::new("sysctl")
+            .arg("-n")
+            .arg(key)
+            .output();
+
+        let Ok(out) = output else {
+            findings.push(Finding::skip(*id, *title, "sysctl not available"));
+            continue;
+        };
+
+        if !out.status.success() {
+            findings.push(Finding::skip(*id, *title, format!("{key} not readable")));
+            continue;
+        }
+
+        let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
+
+        let mut f = if value == *good {
+            Finding::pass(*id, *title, format!("{key} = {value}"))
+        } else {
+            Finding::fail(*id, *title, format!("{key} = {value} (expected {good})"))
+        };
+        f.provenance = Some(Provenance {
+            path: "(effective, sysctl -n)".into(),
+            line: None,
+        });
+        findings.push(f);
+    }
+
+    findings
+}
+
+/// Run the firewall effective-state checks.
+///
+/// Detects the active packet filter (nftables / ufw / firewalld) and reports
+/// whether the host has an active ruleset. Reports `Skip` if none is found.
+pub fn firewall_effective() -> Vec<Finding> {
+    let mut findings = Vec::new();
+
+    // 1. nftables (the modern default on Fedora/Atomic)
+    if let Ok(out) = std::process::Command::new("nft")
+        .arg("list")
+        .arg("ruleset")
+        .output()
+    {
+        if out.status.success() {
+            let ruleset = String::from_utf8_lossy(&out.stdout);
+            let rules = ruleset
+                .lines()
+                .filter(|l| {
+                    let t = l.trim();
+                    !t.is_empty() && !t.starts_with("table")
+                })
+                .count();
+            let mut f = if rules > 0 {
+                Finding::pass(
+                    "FW-001",
+                    "nftables ruleset",
+                    format!("{rules} rules active"),
+                )
+            } else {
+                Finding::fail("FW-001", "nftables ruleset", "no rules (inactive)")
+            };
+            f.provenance = Some(Provenance {
+                path: "(effective, nft list ruleset)".into(),
+                line: None,
+            });
+            findings.push(f);
+            return findings;
+        }
+    }
+
+    // 2. ufw (Ubuntu/Debian)
+    if let Ok(out) = std::process::Command::new("ufw").arg("status").output() {
+        if out.status.success() {
+            let status = String::from_utf8_lossy(&out.stdout);
+            let active = status.to_lowercase().contains("status: active");
+            let mut f = if active {
+                Finding::pass("FW-002", "ufw", "active")
+            } else {
+                Finding::fail("FW-002", "ufw", "inactive")
+            };
+            f.provenance = Some(Provenance {
+                path: "(effective, ufw status)".into(),
+                line: None,
+            });
+            findings.push(f);
+            return findings;
+        }
+    }
+
+    // 3. firewalld (RHEL/CentOS)
+    if let Ok(out) = std::process::Command::new("firewall-cmd")
+        .arg("--state")
+        .output()
+    {
+        if out.status.success() {
+            let state = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            let running = state == "running";
+            let mut f = if running {
+                Finding::pass("FW-003", "firewalld", "running")
+            } else {
+                Finding::fail("FW-003", "firewalld", &state)
+            };
+            f.provenance = Some(Provenance {
+                path: "(effective, firewall-cmd --state)".into(),
+                line: None,
+            });
+            findings.push(f);
+            return findings;
+        }
+    }
+
+    // 4. Nothing detected
+    findings.push(Finding::skip(
+        "FW-000",
+        "Firewall",
+        "no known firewall detected (nft/ufw/firewalld)",
+    ));
+    findings
+}
+
+/// Run the users & sudo effective-state checks.
+///
+/// Detects: extra uid-0 accounts, `NOPASSWD` sudoers entries, and empty
+/// password fields in `/etc/shadow`. Reports `Skip` where unreadable.
+pub fn users_effective() -> Vec<Finding> {
+    let mut findings = Vec::new();
+
+    // 1. Extra uid-0 accounts (only "root" should have uid 0)
+    if let Ok(passwd) = std::fs::read_to_string("/etc/passwd") {
+        let extra: Vec<&str> = passwd
+            .lines()
+            .filter(|l| !l.starts_with('#'))
+            .filter(|l| l.split(':').nth(2) == Some("0"))
+            .filter_map(|l| l.split(':').next())
+            .filter(|name| *name != "root")
+            .collect();
+
+        let mut f = if extra.is_empty() {
+            Finding::pass("USR-001", "uid 0 accounts", "only root")
+        } else {
+            Finding::fail(
+                "USR-001",
+                "uid 0 accounts",
+                format!("extra uid-0: {}", extra.join(", ")),
+            )
+        };
+        f.provenance = Some(Provenance {
+            path: "/etc/passwd".into(),
+            line: None,
+        });
+        findings.push(f);
+    } else {
+        findings.push(Finding::skip(
+            "USR-001",
+            "uid 0 accounts",
+            "/etc/passwd unreadable",
+        ));
+    }
+
+    // 2. NOPASSWD sudoers entries
+    let mut nopasswd = Vec::new();
+    if let Ok(sudoers) = std::fs::read_to_string("/etc/sudoers") {
+        for line in sudoers.lines() {
+            let t = line.trim();
+            if !t.starts_with('#') && t.contains("NOPASSWD") {
+                nopasswd.push(t.to_string());
+            }
+        }
+    }
+    let mut f = if nopasswd.is_empty() {
+        Finding::pass("USR-002", "sudoers NOPASSWD", "none")
+    } else {
+        Finding::warn(
+            "USR-002",
+            "sudoers NOPASSWD",
+            format!("{} entr(y/ies)", nopasswd.len()),
+        )
+    };
+    f.provenance = Some(Provenance {
+        path: "/etc/sudoers".into(),
+        line: None,
+    });
+    findings.push(f);
+
+    // 3. Empty password fields in /etc/shadow (needs root)
+    match std::fs::read_to_string("/etc/shadow") {
+        Ok(shadow) => {
+            let empty: Vec<&str> = shadow
+                .lines()
+                .filter(|l| {
+                    let mut it = l.split(':');
+                    it.next(); // user
+                    it.next() == Some("") // empty password field
+                })
+                .filter_map(|l| l.split(':').next())
+                .collect();
+            let mut f = if empty.is_empty() {
+                Finding::pass("USR-003", "empty passwords", "none")
+            } else {
+                Finding::fail(
+                    "USR-003",
+                    "empty passwords",
+                    format!("{} account(s)", empty.len()),
+                )
+            };
+            f.provenance = Some(Provenance {
+                path: "/etc/shadow".into(),
+                line: None,
+            });
+            findings.push(f);
+        }
+        Err(_) => {
+            let mut f = Finding::skip(
+                "USR-003",
+                "empty passwords",
+                "/etc/shadow unreadable (try as root)",
+            );
+            f.provenance = Some(Provenance {
+                path: "/etc/shadow".into(),
+                line: None,
+            });
+            findings.push(f);
+        }
+    }
+
+    findings
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -577,5 +835,29 @@ not a diff line
         // return facts. Either way: never panic, never empty.
         let findings = ostree_effective();
         assert!(!findings.is_empty());
+    }
+
+    #[test]
+    fn sysctl_effective_returns_findings() {
+        // Must always return one finding per checked key; never panic, never empty.
+        let findings = sysctl_effective();
+        assert!(!findings.is_empty());
+        assert!(findings.iter().all(|f| f.provenance.is_some()));
+    }
+
+    #[test]
+    fn firewall_effective_returns_findings() {
+        // Always at least one finding; never panic, never empty.
+        let findings = firewall_effective();
+        assert!(!findings.is_empty());
+        assert!(findings.iter().all(|f| f.provenance.is_some()));
+    }
+
+    #[test]
+    fn users_effective_returns_findings() {
+        // Always findings (or skips); never panic, never empty.
+        let findings = users_effective();
+        assert!(!findings.is_empty());
+        assert!(findings.iter().all(|f| f.provenance.is_some()));
     }
 }

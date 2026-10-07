@@ -1,6 +1,6 @@
 [package]
 name = "state-witness"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Effective-state security audit for immutable/atomic Linux (ostree, bootc) with provenance"
