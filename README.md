@@ -86,6 +86,24 @@ sudo ./target/release/state-witness ssh
 cargo install state-witness
 ```
 
+### Run from a container (static binary)
+
+The binary builds as a **static (musl)** executable, so it runs on any Linux distro — including minimal containers:
+
+```bash
+# build a static binary
+cargo build --release --target x86_64-unknown-linux-musl
+
+# run it in a scratch container
+podman run --rm \
+  -v "$PWD/target/x86_64-unknown-linux-musl/release/state-witness:/sw:ro,Z" \
+  alpine:latest sh -c '/sw sysctl; /sw users'
+```
+
+> **SELinux note (Fedora/RHEL):** mount with `:Z` (or copy the binary into the container) — without it the container cannot execute the file (`Permission denied` / segfault).
+
+Missing tools are reported as `Skip`, not errors — the audit degrades gracefully (e.g. no `sshd` → `Skip`).
+
 ## Usage (v0.0.1)
 ```bash
 # effective SSH config (needs root: sshd -T reads host keys)

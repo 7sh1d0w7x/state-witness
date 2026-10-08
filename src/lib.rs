@@ -435,6 +435,24 @@ pub fn sysctl_effective() -> Vec<Finding> {
             "1",
         ),
         ("kernel.dmesg_restrict", "SYS-004", "dmesg restrict", "1"),
+        (
+            "kernel.kptr_restrict",
+            "SYS-005",
+            "kptr_restrict (hide kernel pointers)",
+            "1",
+        ),
+        (
+            "kernel.yama.ptrace_scope",
+            "SYS-006",
+            "Yama ptrace scope (block ptrace)",
+            "1",
+        ),
+        (
+            "net.ipv4.tcp_syncookies",
+            "SYS-007",
+            "TCP SYN cookies (SYN-flood protection)",
+            "1",
+        ),
     ];
 
     let mut findings = Vec::new();
