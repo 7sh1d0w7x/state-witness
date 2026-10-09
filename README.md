@@ -2,7 +2,7 @@
 
 ![state-witness](assets/banner.svg)
 
-[![status](https://img.shields.io/badge/status-v0.0.1-blue)](CHANGELOG.md)
+[![status](https://img.shields.io/badge/status-v0.1.0-blue)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green)](#license)
 [![rust](https://img.shields.io/badge/rust-1.88%2B-orange)](https://www.rust-lang.org)
 [![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)](#contributing)
@@ -19,7 +19,7 @@
 >
 > Existing tools read the file; attackers read the drop-in. `state-witness` reads the resolved runtime state (`sshd -T`, `sysctl`, `systemctl show`, `auditctl -l`) and understands ostree/`bootc` deployments (immutable `/usr`, `/etc` drift, signed commits).
 
-**Status:** v0.0.1 (scaffold; `ssh` check working) · **Changelog:** `CHANGELOG.md`
+**Status:** v0.1.0 (`ssh`, `atomic`, `sysctl`, `firewall`, `users`) · **Changelog:** `CHANGELOG.md`
 
 ---
 
@@ -104,7 +104,7 @@ podman run --rm \
 
 Missing tools are reported as `Skip`, not errors — the audit degrades gracefully (e.g. no `sshd` → `Skip`).
 
-## Usage (v0.0.1)
+## Usage (v0.1.0)
 ```bash
 # effective SSH config (needs root: sshd -T reads host keys)
 sudo state-witness ssh

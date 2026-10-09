@@ -32,15 +32,28 @@ Reads the deployment as a first-class fact:
 
 Source: `rpm-ostree status` and `bootc status --json`.
 
+### SYSCTL effective — ✅
+Reads the **runtime** value (`sysctl -n`) and compares it against the persisted value, flagging drift. Covers IP forwarding, ASLR, reverse-path filtering, `dmesg_restrict`, `kptr_restrict`, Yama `ptrace_scope`, and TCP syncookies.
+
+Source: `sysctl -n` / `/proc/sys`.
+
+> The effective value is the kernel's live value; a persisted setting that is not applied is reported as drift, not a pass.
+
+### FIREWALL effective — ✅
+Detects the active packet filter (nftables / ufw / firewalld) and reports whether it is running.
+
+Source: `nft list ruleset` / `ufw status` / `firewall-cmd --state`.
+
+> Missing tools are reported as `Skip`, never as a failure.
+
+### USERS & SUDO — ✅
+Flags extra uid-0 accounts, `NOPASSWD` sudoers entries, and empty password fields in `/etc/shadow`.
+
+Source: `/etc/passwd`, `/etc/sudoers` (+ drop-ins), `/etc/shadow`.
+
 ---
 
 ## Planned
-
-### v0.1.0 — 4 checks
-
-- **SYSCTL effective** — runtime value (`sysctl -n`) vs persisted value, flagging drift. 📋
-- **FIREWALL effective** — active ruleset via `nft list ruleset` / `ufw status` / `firewall-cmd`. 📋
-- **USERS & SUDO** — extra uid 0 accounts, `NOPASSWD` sudoers entries, `/etc/shadow` permissions. 📋
 
 ### v0.2.0 — 6 checks
 
