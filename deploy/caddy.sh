@@ -11,8 +11,10 @@ fi
 
 echo "== 2/4 Caddyfile =="
 mkdir -p /etc/caddy
+# ⚠️ Înlocuiește n8n.example.com cu domeniul clientului. Pentru certificat
+#    real (Let's Encrypt) ȘTERGE linia `tls internal`.
 cat > /etc/caddy/Caddyfile <<'EOF'
-192.168.122.50 {
+n8n.example.com {
     tls internal
     reverse_proxy 127.0.0.1:5678
 }
@@ -42,7 +44,7 @@ sleep 3
 echo "   caddy: $(systemctl is-active caddy)"
 
 echo "== 4/4 test =="
-curl -sk -o /dev/null -w "https n8n (443): %{http_code}\n" https://192.168.122.50 || echo "   (încă pornește)"
+curl -sk -o /dev/null -w "https n8n (443): %{http_code}\n" https://n8n.example.com || echo "   (încă pornește)"
 echo "-- expunere:"
 ss -tulpnH | grep -E ":80 |:443 |:5678 " || true
 echo "== GATA — n8n în spatele Caddy/HTTPS =="
