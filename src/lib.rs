@@ -412,6 +412,13 @@ pub fn ostree_effective() -> Vec<Finding> {
     findings
 }
 
+/// Docker sets `net.ipv4.ip_forward=1`, so a Docker host will legitimately have
+/// forwarding enabled. Detect Docker to avoid a false-positive on SYS-001.
+fn docker_present() -> bool {
+    std::path::Path::new("/run/docker.sock").exists()
+        || std::path::Path::new("/var/run/docker.sock").exists()
+}
+
 /// Run the sysctl effective-state checks.
 ///
 /// Reads the *runtime* kernel parameters via `sysctl -n <key>` (what the kernel
@@ -475,7 +482,15 @@ pub fn sysctl_effective() -> Vec<Finding> {
 
         let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
 
-        let mut f = if value == *good {
+        let ok = match *key {
+            // 2 is stricter than the expected 1 (more secure) → accept any value >= 1.
+            "kernel.kptr_restrict" => value.parse::<i32>().map(|v| v >= 1).unwrap_or(false),
+            // Docker requires ip_forward=1 → accept it only when Docker is present.
+            "net.ipv4.ip_forward" => value == *good || docker_present(),
+            _ => value == *good,
+        };
+
+        let mut f = if ok {
             Finding::pass(*id, *title, format!("{key} = {value}"))
         } else {
             Finding::fail(*id, *title, format!("{key} = {value} (expected {good})"))
