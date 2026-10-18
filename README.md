@@ -1,6 +1,6 @@
 <div align="center">
 
-![state-witness](assets/banner.svg)
+![state-witness](assets/banner.png)
 
 [![status](https://img.shields.io/badge/status-v0.1.0-blue)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green)](#license)
