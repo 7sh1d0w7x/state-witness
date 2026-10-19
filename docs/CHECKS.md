@@ -1,80 +1,112 @@
 # Checks
 
-What `state-witness` inspects, and the state of each check. Everything here targets **effective runtime state**, not configuration files.
+What `state-witness` inspects, and the state of each check. Everything here
+targets **effective runtime state**, not configuration files.
 
-Legend: ✅ implemented · 🚧 in progress · 📋 planned
+Legend: ✅ implemented · 📋 planned
 
 ---
 
-## Implemented
+## Implemented (v0.1.0 — 19 checks)
 
-### SSH effective authentication & crypto — ✅
-Resolves the effective `sshd` configuration via `sshd -T` (the daemon's own view, after all includes and drop-ins) and reports the values that actually apply — with provenance.
+### SSH effective configuration — ✅ (2 checks)
 
-Examples of what it surfaces:
+Resolves the effective `sshd` configuration via `sshd -T` (the daemon's own view,
+after all includes and drop-ins) and reports the values that actually apply.
 
-- `PermitRootLogin`
-- `PasswordAuthentication`
-- `PermitEmptyPasswords`
-- `X11Forwarding`
-- `MaxAuthTries`
-- allowed ciphers / MACs / KEX
+| ID | Check | What counts as good |
+|---|---|---|
+| `SSH-001` | `PermitRootLogin` | `no` passes; `prohibit-password` / `without-password` warns; anything else fails |
+| `SSH-002` | `PasswordAuthentication` | `no` passes; `yes` fails |
 
-> `sshd -T` reads host keys, so this check requires root. Without it, it is skipped with a reason — never reported as a failure.
+Source: `sshd -T`.
 
-### Atomic / ostree / bootc deployment — ✅
-Reads the deployment as a first-class fact:
+> `sshd -T` reads host keys, so this check usually requires root. Without it the
+> check returns `Skip` with a reason — never reported as a failure.
 
-- current deployment (image, version)
-- whether the deployment is **signed**
-- whether the deployment is **pinned**
-- **`/etc` drift** via `ostree admin config-diff`
+> **Not implemented yet:** `PermitEmptyPasswords`, `X11Forwarding`, `MaxAuthTries`,
+> and allowed cipher/MAC/KEX lists. `sshd -T` exposes all of them; the checks are
+> planned, not present.
 
-Source: `rpm-ostree status` and `bootc status --json`.
+### Atomic / ostree / bootc deployment — ✅ (4 checks)
 
-### SYSCTL effective — ✅
-Reads the **runtime** value (`sysctl -n`) and compares it against the persisted value, flagging drift. Covers IP forwarding, ASLR, reverse-path filtering, `dmesg_restrict`, `kptr_restrict`, Yama `ptrace_scope`, and TCP syncookies.
+Reads the deployment as a first-class fact.
 
-Source: `sysctl -n` / `/proc/sys`.
+| ID | Check | Source |
+|---|---|---|
+| `OSTREE-001` | Current deployment (image, version) | `rpm-ostree status` / `bootc status --json` |
+| `OSTREE-002` | Whether the deployment is **signed** | same |
+| `OSTREE-003` | Whether the deployment is **pinned** | same |
+| `OSTREE-004` | `/etc` drift | `ostree admin config-diff` |
 
-> The effective value is the kernel's live value; a persisted setting that is not applied is reported as drift, not a pass.
+On a mutable host the command returns a single `Skip` — "not an ostree/bootc host"
+— rather than pretending to find a deployment.
 
-### FIREWALL effective — ✅
-Detects the active packet filter (nftables / ufw / firewalld) and reports whether it is running.
+### SYSCTL effective — ✅ (7 checks)
 
-Source: `nft list ruleset` / `ufw status` / `firewall-cmd --state`.
+Reads the **live kernel value** with `sysctl -n` and compares it with the expected
+hardened value.
 
-> Missing tools are reported as `Skip`, never as a failure.
+| ID | Key | Expected |
+|---|---|---|
+| `SYS-001` | `net.ipv4.ip_forward` | `0` (accepted as good when Docker is present) |
+| `SYS-002` | `kernel.randomize_va_space` (ASLR) | `2` |
+| `SYS-003` | `net.ipv4.conf.all.rp_filter` | `1` |
+| `SYS-004` | `kernel.dmesg_restrict` | `1` |
+| `SYS-005` | `kernel.kptr_restrict` | `1` or stricter |
+| `SYS-006` | `kernel.yama.ptrace_scope` | `1` |
+| `SYS-007` | `net.ipv4.tcp_syncookies` | `1` |
 
-### USERS & SUDO — ✅
-Flags extra uid-0 accounts, `NOPASSWD` sudoers entries, and empty password fields in `/etc/shadow`.
+Source: `sysctl -n`.
 
-Source: `/etc/passwd`, `/etc/sudoers` (+ drop-ins), `/etc/shadow`.
+> This compares the runtime value against the **expected** value. It does not
+> compare runtime against the persisted `/etc/sysctl.d` value — "the setting is
+> not persisted" is not detected yet.
+
+### FIREWALL effective — ✅ (3 checks)
+
+Detects the active packet filter and reports its state. Only the first filter
+found is reported.
+
+| ID | Check | Source |
+|---|---|---|
+| `FW-001` | nftables ruleset (rule count) | `nft list ruleset` |
+| `FW-002` | ufw state | `ufw status` |
+| `FW-003` | firewalld state | `firewall-cmd --state` |
+
+Missing tools are reported as `Skip`, never as a failure.
+
+### USERS & SUDO — ✅ (3 checks)
+
+| ID | Check | Source |
+|---|---|---|
+| `USR-001` | Extra uid-0 accounts (only `root` should have uid 0) | `/etc/passwd` |
+| `USR-002` | `NOPASSWD` sudoers entries | `/etc/sudoers` |
+| `USR-003` | Empty password fields | `/etc/shadow` |
 
 ---
 
 ## Planned
 
-### v0.2.0 — 6 checks
+### v0.2.0
 
 - **LISTENING SOCKETS** — compare live listeners against an expected set. 📋
 - **SUID / SGID** — inventory with allowlist. 📋
 - **JSON schema v1** — stabilized, versioned output contract. 📋
 
-### v0.3.0 — 9 checks
+### v0.3.0
 
 - **FILE CAPABILITIES** — anomalies in `getcap` output. 📋
 - **SELinux / AppArmor** — enforcement state and domain. 📋
 - **systemd hardening** — via `systemd-analyze security`. 📋
-
-### v0.4.0 — 12 checks
-
-- **AUDIT subsystem** — `auditd` presence and rules. 📋
-- **KERNEL protections** — `/sys/.../vulnerabilities`, lockdown mode. 📋
-- **ATOMIC `/etc` drift** — formalized as a first-class check. 📋
+- **More SSH knobs** — `PermitEmptyPasswords`, `X11Forwarding`, `MaxAuthTries`,
+  cipher/MAC/KEX lists (already exposed by `sshd -T`). 📋
 
 ### Later
 
+- **AUDIT subsystem** — `auditd` presence and rules. 📋
+- **KERNEL protections** — `/sys/.../vulnerabilities`, lockdown mode. 📋
+- **Remediation** — `--plan` / `--apply` with rollback. 📋
 - **EVIDENCE mode** — compliance-oriented report. 📋
 - **SARIF 2.1.0** output. 📋
 - Control mapping (NIST SP 800-53, CRA Annex I, BSI). 📋
@@ -83,9 +115,13 @@ Source: `/etc/passwd`, `/etc/sudoers` (+ drop-ins), `/etc/shadow`.
 
 ## Design principles for checks
 
-1. **Effective over declared.** Read what the daemon or kernel enforces, not what a file says.
-2. **Provenance always.** Every finding points to the file and line that produced the value.
+1. **Effective over declared.** Read what the daemon or kernel enforces, not what a
+   file says.
+2. **Provenance always.** Every finding names the command or file that produced the
+   value — including `Skip` findings. Line numbers inside a config file are not
+   emitted yet (`provenance.line` is currently always `null`).
 3. **Skip, never false-fail.** A check that cannot run returns `Skip(reason)`.
-4. **Read-only by default.** Checks never modify the host. Remediation is a separate, opt-in step.
+4. **Read-only.** Checks never modify the host. Remediation does not exist yet;
+   when it does, it will be a separate, opt-in step.
 
 See [`DESIGN.md`](DESIGN.md) for the architecture behind these checks.

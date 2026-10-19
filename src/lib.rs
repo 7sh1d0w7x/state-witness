@@ -80,6 +80,20 @@ impl Finding {
             provenance: None,
         }
     }
+
+    /// Attach provenance (chainable).
+    ///
+    /// Every finding this crate emits must say where it came from — including
+    /// `Skip` findings: "unknown because the probe was unavailable" is itself a
+    /// fact worth citing. Constructors start with `None` so callers must be
+    /// explicit; this helper keeps that explicit without extra boilerplate.
+    pub fn with_provenance(mut self, path: impl Into<String>) -> Self {
+        self.provenance = Some(Provenance {
+            path: path.into(),
+            line: None,
+        });
+        self
+    }
 }
 
 /// Run the SSH effective-state checks.
@@ -93,11 +107,10 @@ pub fn ssh_effective() -> Vec<Finding> {
     let output = std::process::Command::new("sshd").arg("-T").output();
 
     let Ok(out) = output else {
-        return vec![Finding::skip(
-            "SSH-000",
-            "SSH effective config",
-            "sshd not available",
-        )];
+        return vec![
+            Finding::skip("SSH-000", "SSH effective config", "sshd not available")
+                .with_provenance("(effective, sshd -T)"),
+        ];
     };
 
     if !out.status.success() {
@@ -105,7 +118,8 @@ pub fn ssh_effective() -> Vec<Finding> {
             "SSH-000",
             "SSH effective config",
             "sshd -T failed (try as root)",
-        )];
+        )
+        .with_provenance("(effective, sshd -T)")];
     }
 
     let cfg = String::from_utf8_lossy(&out.stdout);
@@ -146,11 +160,10 @@ pub fn ssh_effective() -> Vec<Finding> {
     }
 
     if findings.is_empty() {
-        findings.push(Finding::skip(
-            "SSH-000",
-            "SSH effective config",
-            "no known keys parsed",
-        ));
+        findings.push(
+            Finding::skip("SSH-000", "SSH effective config", "no known keys parsed")
+                .with_provenance("(effective, sshd -T)"),
+        );
     }
 
     findings
@@ -307,7 +320,8 @@ pub fn ostree_effective() -> Vec<Finding> {
             "OSTREE-000",
             "Immutable/atomic host",
             "not an ostree/bootc host (mutable)",
-        )];
+        )
+        .with_provenance("(effective, /run/ostree-booted absent)")];
     }
 
     let provenance = |p: &str| {
@@ -402,11 +416,14 @@ pub fn ostree_effective() -> Vec<Finding> {
     }
 
     if findings.is_empty() {
-        findings.push(Finding::skip(
-            "OSTREE-000",
-            "Immutable/atomic host",
-            "ostree-booted, but no facts gathered (try as root)",
-        ));
+        findings.push(
+            Finding::skip(
+                "OSTREE-000",
+                "Immutable/atomic host",
+                "ostree-booted, but no facts gathered (try as root)",
+            )
+            .with_provenance("(effective, rpm-ostree status / bootc status)"),
+        );
     }
 
     findings
@@ -471,12 +488,18 @@ pub fn sysctl_effective() -> Vec<Finding> {
             .output();
 
         let Ok(out) = output else {
-            findings.push(Finding::skip(*id, *title, "sysctl not available"));
+            findings.push(
+                Finding::skip(*id, *title, "sysctl not available")
+                    .with_provenance("(effective, sysctl -n)"),
+            );
             continue;
         };
 
         if !out.status.success() {
-            findings.push(Finding::skip(*id, *title, format!("{key} not readable")));
+            findings.push(
+                Finding::skip(*id, *title, format!("{key} not readable"))
+                    .with_provenance(format!("(effective, sysctl -n {key})")),
+            );
             continue;
         }
 
@@ -587,11 +610,14 @@ pub fn firewall_effective() -> Vec<Finding> {
     }
 
     // 4. Nothing detected
-    findings.push(Finding::skip(
-        "FW-000",
-        "Firewall",
-        "no known firewall detected (nft/ufw/firewalld)",
-    ));
+    findings.push(
+        Finding::skip(
+            "FW-000",
+            "Firewall",
+            "no known firewall detected (nft/ufw/firewalld)",
+        )
+        .with_provenance("(effective, nft/ufw/firewalld not detected)"),
+    );
     findings
 }
 
@@ -627,11 +653,10 @@ pub fn users_effective() -> Vec<Finding> {
         });
         findings.push(f);
     } else {
-        findings.push(Finding::skip(
-            "USR-001",
-            "uid 0 accounts",
-            "/etc/passwd unreadable",
-        ));
+        findings.push(
+            Finding::skip("USR-001", "uid 0 accounts", "/etc/passwd unreadable")
+                .with_provenance("/etc/passwd"),
+        );
     }
 
     // 2. NOPASSWD sudoers entries
