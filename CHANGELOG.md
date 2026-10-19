@@ -7,6 +7,23 @@ Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `--json` applies the same exit-code policy as text output. The JSON path
+  printed the report and returned before the exit code was computed, so
+  `--json` always exited `0` even when findings failed.
+- Every `Skip` finding now carries provenance. Several fallback paths (missing
+  `sshd`, no packet filter detected, unreadable `/etc/passwd`, unavailable
+  `sysctl`) emitted findings without it, breaking the documented contract and
+  failing the suite on hosts where those fallbacks apply.
+- Serialization failures exit `2` with a message on stderr instead of panicking.
+
+### Added
+- Process-level CLI tests (`tests/cli.rs`): JSON validity on stdout, exit-code
+  agreement between text and JSON, and the documented `0` / `1` contract.
+- README and `docs/CHECKS.md` realigned with the implementation — 19 checks
+  across 5 commands, no SARIF/remediation/compliance claims, and
+  `provenance.line` documented as not yet emitted.
+
 ### Planned
 - More checks (permissions, updates, TLS, logging, network)
 - Evidence mode (compliance report)

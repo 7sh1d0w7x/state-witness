@@ -13,133 +13,233 @@
 
 # state-witness
 
-> **The effective-state security auditor built for immutable Linux.** — Fedora Atomic, Bazzite, and `bootc` / RHEL Image Mode.
+An **effective-state** security auditor for Linux — with extra awareness of
+immutable/atomic hosts (Fedora Atomic, Bazzite, `bootc` / RHEL Image Mode).
 
-> Reports what your host **actually enforces** — with **deployment provenance** — not what a config file claims. **Native Rust, single static binary, no CINC/Ruby engine.**
->
-> Existing tools read the file; attackers read the drop-in. `state-witness` reads the resolved runtime state (`sshd -T`, `sysctl`, `systemctl show`, `auditctl -l`) and understands ostree/`bootc` deployments (immutable `/usr`, `/etc` drift, signed commits).
+It reports what the running system **actually enforces** — `sshd -T`, `sysctl -n`,
+the live packet filter, real `/etc/passwd` and `/etc/shadow` — and cites where each
+value came from. It does not read a config file and assume it is in effect.
 
-**Status:** v0.1.0 (`ssh`, `atomic`, `sysctl`, `firewall`, `users`) · **Changelog:** `CHANGELOG.md`
-
----
-
-## AI usage & authorship
-
-This project is **spec-driven and human-owned**. AI tools are used as an assistant, not an author.
-
-- **Workflow:** I write the spec and tests → AI helps implement to spec → I review every line I don't fully understand → I verify with `cargo test` / `cargo clippy` / manual checks.
-- **What AI is used for:** boilerplate (CLI parsing, serde, docs), test scaffolding, and explanation of unfamiliar APIs.
-- **What AI is NOT used for:** security-critical logic, trust boundaries, or architecture decisions — those are designed and reviewed by hand.
-- **Accountability:** I can explain and justify every design and code decision. Design rationale lives in `ADR.md`.
-- **Provenance:** AI-assisted commits are noted in the commit message (model + that it was reviewed/verified).
-
-> The rule: **AI drafts, the human owns.** If I can't explain a line, it doesn't ship.
+**Status:** v0.1.0 · 5 commands · 19 checks · text and JSON output.
 
 ---
-
-## Why
-Existing tools (Lynis, OpenSCAP) audit *what the config file says*. `state-witness` audits *what the kernel and daemons actually enforce right now*, and tells you **exactly which line set it**.
-
-- 🎯 **Effective state** — `sshd -T`, `sysctl -n`, `nft list ruleset`, `systemctl show`, `/proc`, live sockets
-- 🔎 **Provenance** — "`PasswordAuthentication yes` is effective; resolved from `/etc/ssh/sshd_config.d/50-cloud.conf` line 4, overriding line 61"
-- 🤖 **CI-first** — versioned JSON + SARIF 2.1.0 + exit codes
-- 🧊 **Atomic/ostree-native** — knows `/usr` is read-only; detects `/etc` drift via `ostree admin config-diff`
-- 🛡️ **Safe** — read-only by default; remediation via drop-ins with rollback
-- ⚖️ **Legally clean** — maps to NIST / CRA / BSI; never ships CIS content
-
-## Why atomic/ostree matters
-
-Immutable/atomic hosts (Fedora Atomic, Bazzite, `bootc`/RHEL Image Mode, Universal Blue) are the fastest-growing part of the Linux fleet — and the least audited:
-
-- **`/usr` is read-only** (managed by `rpm-ostree`/`bootc`); tools that probe or remediate via `dnf` break.
-- **Config layering** — a 3-way merge of `/usr/etc` → `/etc` means the "effective" file may not be where a scanner looks.
-- **Deployments are signed and versioned** — a provenance goldmine almost no audit tool consumes.
-- Most scanners either **fail** here or **silently misdetect** the host and produce a confident-but-wrong grade.
-
-`state-witness` treats the atomic deployment as a **first-class fact**: which deployment you're on, whether it's signed, what `/etc` drift exists, and whether the enforced service state is consistent — in one native binary, with no external engine.
-
-### How it compares
-
-| Capability | `state-witness` | Lynis | OpenSCAP |
-|---|---|---|---|
-| Reads **effective** runtime state (`sshd -T`, `sysctl -n`, live sockets) | ✅ | partial (mostly files) | ❌ (file content) |
-| **Provenance** — which file **and line** set the value | ✅ | ❌ | ❌ |
-| **Atomic/ostree/bootc-aware** (read-only `/usr`, deploy detection) | ✅ | ❌ (probes `dnf`) | ❌ (assumes mutable host) |
-| Detects **`/etc` drift** on atomic hosts | ✅ | ❌ | ❌ |
-| Signed-deployment / provenance facts | ✅ | ❌ | partial |
-| Output formats | text · JSON · SARIF *(planned)* | text · log | XML · HTML · ARF |
-| Runtime | single **static Rust** binary (no engine) | Bash + rule files | Python/`oscap` engine |
-| Remediation | drop-in `--plan/--apply` + rollback *(planned)* | manual | remediate via `oscap` |
-| Compliance mapping | NIST / CRA / BSI *(planned)* | built-in profiles | SCAP profiles (authoritative) |
-
-**Read this honestly:** OpenSCAP is the reference for formal SCAP/compliance content; Lynis is the veteran for broad, file-based hardening checks. Neither treats an **immutable/atomic host as a first-class citizen** — that is the gap `state-witness` targets, and it complements them rather than replacing them.
 
 ## Install
+
 ```bash
 # from source (works today)
 git clone https://github.com/7sh1d0w7x/state-witness
 cd state-witness
 cargo build --release
-sudo ./target/release/state-witness ssh
 
-# crates.io (planned)
-cargo install state-witness
+# crates.io — planned, not published yet
+# cargo install state-witness
 ```
 
-### Run from a container (static binary)
+The binary is a single executable with no runtime engine.
 
-The binary builds as a **static (musl)** executable, so it runs on any Linux distro — including minimal containers:
+### Static build (musl)
+
+A statically linked build runs on any Linux distribution, including minimal
+containers. The musl target has to be installed first:
 
 ```bash
-# build a static binary
+rustup target add x86_64-unknown-linux-musl
 cargo build --release --target x86_64-unknown-linux-musl
 
-# run it in a scratch container
 podman run --rm \
   -v "$PWD/target/x86_64-unknown-linux-musl/release/state-witness:/sw:ro,Z" \
   alpine:latest sh -c '/sw sysctl; /sw users'
 ```
 
-> **SELinux note (Fedora/RHEL):** mount with `:Z` (or copy the binary into the container) — without it the container cannot execute the file (`Permission denied` / segfault).
-
-Missing tools are reported as `Skip`, not errors — the audit degrades gracefully (e.g. no `sshd` → `Skip`).
-
-## Usage (v0.1.0)
-```bash
-# effective SSH config (needs root: sshd -T reads host keys)
-sudo state-witness ssh
-# ✗ PermitRootLogin: prohibit-password
-#   └─ from (effective, sshd -T)
-# ✗ PasswordAuthentication: yes
-#   └─ from (effective, sshd -T)
-
-# machine-readable (CI)
-sudo state-witness ssh --json
-
-# exit code: 0 = all pass/warn/skip · 1 = any fail
-```
-
-*Planned:* `scan` (12 checks) · `--format sarif` · `fix --plan/--apply` · `rollback`.
-
-## What it checks (MVP, 12)
-SSH effective auth + crypto · sysctl effective vs persisted · firewall effective ruleset · listening sockets · file capabilities · SUID/SGID · SELinux/AppArmor enforcement · systemd service hardening · audit subsystem · users & sudo · kernel protections · atomic `/etc` drift.
-
-📄 **[`docs/CHECKS.md`](docs/CHECKS.md)** — full list with implementation status · **[`docs/DESIGN.md`](docs/DESIGN.md)** — architecture and design rationale.
-
-## Design in one screen
-```
-Fact     = typed value + provenance(path,line) + access(Root|Unprivileged|Cap)
-Probe    = Rust fn collecting one Fact (declares privilege need)
-Rule     = declarative predicate over Facts (TOML; data, NEVER a script)
-Finding  = rule_id, status, severity, evidence, provenance, controls[]
-```
-Collect once, assert many. Probes testable against recorded fixtures; rules testable against synthetic fact sets.
-
-## Business model
-**Open-core:** `scan` single-host gratis → fleet + compliance dashboard plătit. Zero cold sales.
-
-## License
-MIT OR Apache-2.0 (Rust convention).
+> **SELinux note (Fedora/RHEL):** mount with `:Z` (or copy the binary into the
+> container). Without it the container cannot execute the file.
 
 ---
-*Research: `../../strategy/research/proiecte/project-direction-2026.md` · Design brief (29 sep 2026)*
+
+## Usage
+
+```bash
+state-witness ssh          # effective SSH daemon configuration
+state-witness atomic       # ostree/bootc deployment + /etc drift
+state-witness sysctl       # effective kernel parameters
+state-witness firewall     # active packet filter
+state-witness users        # uid-0 accounts, NOPASSWD, empty passwords
+
+state-witness <command> --json   # machine-readable output
+```
+
+Real output from a Bazzite host:
+
+```console
+$ state-witness sysctl
+✗ IP forwarding: net.ipv4.ip_forward = 1 (expected 0)
+  └─ from (effective, sysctl -n)
+✓ ASLR (randomize_va_space): kernel.randomize_va_space = 2
+  └─ from (effective, sysctl -n)
+✗ kptr_restrict (hide kernel pointers): kernel.kptr_restrict = 0 (expected 1)
+  └─ from (effective, sysctl -n)
+
+$ state-witness ssh
+– SSH effective config: sshd -T failed (try as root)
+  └─ from (effective, sshd -T)
+
+$ state-witness atomic
+✓ Deployment: ostree-image-signed:docker://ghcr.io/ublue-os/bazzite:stable
+  └─ from (effective, rpm-ostree status)
+✓ Deployment signature: valid
+  └─ from (effective, rpm-ostree status)
+```
+
+`sshd -T` reads host keys, so the `ssh` check usually needs root. Without it the
+check returns `Skip` **with a reason** — never a failure.
+
+### Exit codes
+
+The same policy applies to text and JSON output:
+
+| Code | Meaning |
+|---|---|
+| `0` | The audit ran; every finding is `pass`, `warn` or `skip` |
+| `1` | The audit ran; at least one finding is `fail` |
+| `2` | The audit could not produce a result (usage error, unreadable input, serialization failure) |
+
+Exit codes `1` and `2` mean different things on purpose: "the system has findings"
+is not "the tool broke".
+
+### Output contract
+
+- **stdout** carries the report only — text, or a single JSON array.
+- **stderr** carries diagnostics.
+- JSON is a plain array of findings:
+
+```json
+[
+  {
+    "id": "FW-003",
+    "title": "firewalld",
+    "status": "pass",
+    "value": "running",
+    "provenance": {
+      "path": "(effective, firewall-cmd --state)",
+      "line": null
+    }
+  }
+]
+```
+
+`status` is one of `pass`, `warn`, `fail`, `skip`.
+
+> **Not versioned yet.** The JSON shape is stable in practice but there is no
+> schema version field — that is tracked in the roadmap. Pin the tool version if
+> you consume the output in CI.
+
+---
+
+## What it checks (v0.1.0)
+
+19 checks across 5 commands. Every finding carries `provenance`: the command or
+file that produced the value.
+
+| Command | Checks | Source |
+|---|---|---|
+| `ssh` | `PermitRootLogin`, `PasswordAuthentication` | `sshd -T` |
+| `sysctl` | IP forwarding, ASLR, reverse-path filtering, `dmesg_restrict`, `kptr_restrict`, Yama `ptrace_scope`, TCP syncookies | `sysctl -n` |
+| `firewall` | nftables ruleset, ufw state, firewalld state | `nft list ruleset`, `ufw status`, `firewall-cmd --state` |
+| `users` | extra uid-0 accounts, `NOPASSWD` sudoers entries, empty password fields | `/etc/passwd`, `/etc/sudoers`, `/etc/shadow` |
+| `atomic` | deployment image, signature status, pin state, `/etc` drift | `rpm-ostree status`, `bootc status --json`, `ostree admin config-diff` |
+
+📄 **[`docs/CHECKS.md`](docs/CHECKS.md)** — per-check detail and implementation
+status · **[`docs/DESIGN.md`](docs/DESIGN.md)** — architecture.
+
+### What "provenance" means here
+
+Each finding names **the command or file its value came from** — for example
+`(effective, sysctl -n)` or `/etc/passwd`.
+
+It does **not** yet emit a line number inside the file that set the value. That
+requires resolving include/drop-in chains and is not implemented in v0.1.0; the
+`line` field exists in the JSON and is currently always `null`.
+
+---
+
+## Limits
+
+Stated plainly, so you can decide whether the tool fits:
+
+- **Focused, not exhaustive.** 19 checks. It is not a compliance framework and
+  not a SCAP implementation.
+- **No remediation.** `state-witness` never modifies the host. It reports; changes
+  are yours to apply.
+- **No compliance mapping.** NIST/CRA/BSI control mapping is not implemented.
+- **No SARIF yet.** Text and JSON only.
+- **Heuristic rules are simple.** Thresholds such as "ASLR should be 2" are
+  defaults, not a policy engine. Expect to interpret results, not just consume
+  a grade.
+- **`Skip` is not `pass`.** If a check cannot run (missing tool, no permission),
+  it says so. A report full of `skip` findings means "not checked", not "clean".
+
+Other tools exist in this space with broader rule sets and formal compliance
+content. `state-witness` does not claim parity with them; it targets a narrower
+question — *what does this host enforce right now, and where did that value come
+from* — with awareness of immutable hosts.
+
+---
+
+## Design in one screen
+
+```
+Finding = id, title, status (pass|warn|fail|skip), value, provenance
+```
+
+- **Effective over declared.** Ask the daemon or the kernel, not the file.
+- **Provenance always.** Every finding says where the value came from — including
+  `skip` findings ("unknown because X was unavailable" is a fact worth citing).
+- **Skip, never false-fail.** A check that cannot run returns `Skip(reason)`.
+- **Read-only.** Checks never modify the host.
+- **Structured output.** Text for humans, JSON for CI, same exit-code policy.
+
+---
+
+## AI usage & authorship
+
+This project is **spec-driven and human-owned**. AI tools are used as an
+assistant, not an author.
+
+- **Workflow:** I write the spec and tests → AI helps implement to spec → I review
+  every line I don't fully understand → I verify with `cargo test`, `cargo clippy`
+  and manual checks.
+- **What AI is used for:** boilerplate (CLI parsing, serde, docs), test
+  scaffolding, explanation of unfamiliar APIs.
+- **What AI is not used for:** security-critical logic, trust boundaries,
+  architecture decisions.
+- **Accountability:** I can explain and justify every design and code decision.
+  Rationale lives in `ADR.md`.
+- **Provenance:** AI-assisted commits say so in the commit message.
+
+> The rule: **AI drafts, the human owns.** If I can't explain a line, it doesn't ship.
+
+---
+
+## Roadmap
+
+Planned, not implemented — listed so the README cannot drift ahead of the code:
+
+- more checks (listening sockets, SUID/SGID, file capabilities, SELinux/AppArmor
+  enforcement, systemd hardening, audit subsystem)
+- a versioned JSON schema
+- SARIF 2.1.0 output
+- remediation planning (`--plan` / `--apply`) with rollback
+- compliance control mapping
+
+## License
+
+MIT OR Apache-2.0 (Rust convention).
+
+## Contributing
+
+Issues and pull requests are welcome. See `CONTRIBUTING.md`.
+
+---
+
+*Design brief: 29 September 2026.*
