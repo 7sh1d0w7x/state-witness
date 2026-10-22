@@ -18,6 +18,14 @@ Versioning: [SemVer](https://semver.org/).
 - Serialization failures exit `2` with a message on stderr instead of panicking.
 
 ### Added
+- SSH coverage expanded from 2 to 8 checks, all from `sshd -T`:
+  `PermitEmptyPasswords` (SSH-003), `MaxAuthTries` (SSH-004), `X11Forwarding`
+  (SSH-005), `AllowUsers`/`AllowGroups` (SSH-006), `ListenAddress` (SSH-007), and
+  a deliberately narrow weak-crypto check (SSH-008) that flags only primitives we
+  are willing to call broken.
+- `parse_sshd_effective()`: the `sshd -T` parser is now pure and unit-testable,
+  so every SSH check is covered by fixture tests that need neither root nor a
+  running daemon.
 - Process-level CLI tests (`tests/cli.rs`): JSON validity on stdout, exit-code
   agreement between text and JSON, and the documented `0` / `1` contract.
 - README and `docs/CHECKS.md` realigned with the implementation — 19 checks
