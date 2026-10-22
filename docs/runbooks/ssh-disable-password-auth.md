@@ -9,7 +9,8 @@ what you expect to see, and what to do when you don't see it.
 allowed to log in. Those are separate changes with their own runbooks.
 
 **Last executed:** 2026-10-22 · Fedora 42 cloud image · OpenSSH 9.9p1
-(evidence at the bottom).
+(executed by hand, one step at a time; full transcript in
+`ssh-disable-password-auth.evidence.txt`).
 
 ---
 
@@ -238,7 +239,7 @@ The value was **declared in a drop-in**, not in `/etc/ssh/sshd_config`.
 **Key access before the change** (step 2):
 
 ```
-$ ssh -o PreferredAuthentications=publickey -o BatchMode=yes lab@127.0.0.1 -p 2222 'echo key-ok'
+$ ssh -o PreferredAuthentications=publickey -o BatchMode=yes -p 2222 lab@127.0.0.1 'echo key-ok'
 key-ok
 ```
 
@@ -257,11 +258,21 @@ key-ok
 confirming that password login works again, then re-applying the change for the
 final state. A rollback you have never run is a story, not a rollback.
 
-**One thing went wrong and stayed in the write-up:** the first attempt wrote
-`60-no-password-auth.conf` and `sshd -T` still said `passwordauthentication yes`.
-The `50-cloud-init.conf` drop-in won the ordering race. Renaming to `00-…` fixed
-it. That detail is now step 3, because someone following the older version would
-have believed the change worked when it had not.
+**Three things went wrong, and they stayed in the write-up.** They are the
+useful part of this document:
+
+1. **The ordering race.** The first attempt wrote `60-no-password-auth.conf` and
+   `sshd -T` still said `passwordauthentication yes` — `50-cloud-init.conf` won.
+   Same content, different number, different result. That is now step 3.
+2. **The block went to the wrong host.** Step 3 was pasted into the operator's
+   workstation instead of the VM. Nothing broke (`sshd` was inactive there), but
+   the change "didn't work" for a reason unrelated to sshd. **Check the prompt
+   before pasting.**
+3. **Multi-line paste interleaved.** `printf … | sudo tee …` plus following lines
+   executed out of order: the drop-in was created empty, and `sshd -t` still
+   passed, because an empty file is valid config. One line at a time is slower
+   and safer. A typo in a `grep` key prints nothing, which looks identical to a
+   broken system — silent output is not proof.
 
 ### Limits of this evidence
 
