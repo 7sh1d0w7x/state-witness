@@ -152,6 +152,9 @@ file that produced the value.
 📄 **[`docs/CHECKS.md`](docs/CHECKS.md)** — per-check detail and implementation
 status · **[`docs/DESIGN.md`](docs/DESIGN.md)** — architecture.
 
+📘 **[`docs/runbooks/`](docs/runbooks/)** — procedures that use the tool for a real
+change, with the evidence from the run that produced them.
+
 ### What "provenance" means here
 
 Each finding names **the command or file its value came from** — for example
