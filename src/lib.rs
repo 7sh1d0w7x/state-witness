@@ -96,6 +96,142 @@ impl Finding {
     }
 }
 
+/// Parse `sshd -T` output into findings.
+///
+/// Pure so the checks can be tested against fixtures without a running daemon.
+pub fn parse_sshd_effective(cfg: &str) -> Vec<Finding> {
+    let get = |key: &str| -> Option<String> {
+        cfg.lines()
+            .find_map(|l| l.strip_prefix(key)?.trim().to_string().into())
+    };
+
+    let mut findings = Vec::new();
+
+    if let Some(v) = get("permitrootlogin") {
+        // no = best; prohibit-password / without-password = key-only (warn); yes = fail
+        let f = match v.as_str() {
+            "no" => Finding::pass("SSH-001", "PermitRootLogin", v.clone()),
+            "prohibit-password" | "without-password" => {
+                Finding::warn("SSH-001", "PermitRootLogin", v.clone())
+            }
+            _ => Finding::fail("SSH-001", "PermitRootLogin", v.clone()),
+        };
+        findings.push(f.with_provenance("(effective, sshd -T)"));
+    }
+
+    if let Some(v) = get("passwordauthentication") {
+        let f = if v == "no" {
+            Finding::pass("SSH-002", "PasswordAuthentication", v.clone())
+        } else {
+            Finding::fail("SSH-002", "PasswordAuthentication", v.clone())
+        };
+        findings.push(f.with_provenance("(effective, sshd -T)"));
+    }
+
+    if let Some(v) = get("permitemptypasswords") {
+        let f = if v == "no" {
+            Finding::pass("SSH-003", "PermitEmptyPasswords", v.clone())
+        } else {
+            Finding::fail("SSH-003", "PermitEmptyPasswords", v.clone())
+        };
+        findings.push(f.with_provenance("(effective, sshd -T)"));
+    }
+
+    if let Some(v) = get("maxauthtries") {
+        let n = v.parse::<u32>().ok();
+        let f = match n {
+            Some(n) if n <= 4 => Finding::pass("SSH-004", "MaxAuthTries", v.clone()),
+            Some(n) if n <= 6 => Finding::warn("SSH-004", "MaxAuthTries", v.clone()),
+            _ => Finding::fail("SSH-004", "MaxAuthTries", v.clone()),
+        };
+        findings.push(f.with_provenance("(effective, sshd -T)"));
+    }
+
+    if let Some(v) = get("x11forwarding") {
+        let f = if v == "no" {
+            Finding::pass("SSH-005", "X11Forwarding", v.clone())
+        } else {
+            Finding::warn("SSH-005", "X11Forwarding", v.clone())
+        };
+        findings.push(f.with_provenance("(effective, sshd -T)"));
+    }
+
+    let allow_users = get("allowusers");
+    let allow_groups = get("allowgroups");
+    if allow_users.is_some() || allow_groups.is_some() {
+        let value = [allow_users, allow_groups]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" ; ");
+        findings.push(
+            Finding::pass("SSH-006", "AllowUsers / AllowGroups", value)
+                .with_provenance("(effective, sshd -T)"),
+        );
+    } else {
+        findings.push(
+            Finding::warn("SSH-006", "AllowUsers / AllowGroups", "unset")
+                .with_provenance("(effective, sshd -T)"),
+        );
+    }
+
+    let listens: Vec<String> = cfg
+        .lines()
+        .filter_map(|l| {
+            l.strip_prefix("listenaddress ")
+                .map(|v| v.trim().to_string())
+        })
+        .collect();
+    let is_loopback = |addr: &str| {
+        addr.starts_with("127.") || addr.starts_with("[::1]") || addr.starts_with("::1")
+    };
+    let f = if listens.is_empty() {
+        Finding::skip("SSH-007", "ListenAddress", "unset (binds all interfaces)")
+    } else if listens.iter().all(|a| is_loopback(a)) {
+        Finding::pass("SSH-007", "ListenAddress", listens.join(" "))
+    } else {
+        Finding::warn("SSH-007", "ListenAddress", listens.join(" "))
+    };
+    findings.push(f.with_provenance("(effective, sshd -T)"));
+
+    // Only clearly broken primitives. Borderline ones (*-cbc, group14-sha1) are
+    // deliberately not flagged: they appear in stock defaults and would make the
+    // tool cry wolf on every Fedora host.
+    const BROKEN: [&str; 5] = [
+        "arcfour",
+        "3des-cbc",
+        "hmac-md5",
+        "diffie-hellman-group1-sha1",
+        "diffie-hellman-group-exchange-sha1",
+    ];
+    let mut lists_seen = false;
+    let mut weak: Vec<String> = Vec::new();
+    for key in ["kexalgorithms", "ciphers", "macs"] {
+        if let Some(v) = get(key) {
+            lists_seen = true;
+            for item in v.split(',') {
+                let item = item.trim();
+                if BROKEN
+                    .iter()
+                    .any(|b| item == *b || (b.ends_with('-') && item.starts_with(b)))
+                {
+                    weak.push(format!("{key}:{item}"));
+                }
+            }
+        }
+    }
+    let f = if !lists_seen {
+        Finding::skip("SSH-008", "Weak crypto", "no algorithm lists in sshd -T")
+    } else if weak.is_empty() {
+        Finding::pass("SSH-008", "Weak crypto", "no known-broken primitives")
+    } else {
+        Finding::warn("SSH-008", "Weak crypto", weak.join(" "))
+    };
+    findings.push(f.with_provenance("(effective, sshd -T)"));
+
+    findings
+}
+
 /// Run the SSH effective-state checks.
 ///
 /// v0.0.1: reads the effective config of the running OpenSSH daemon via
@@ -123,41 +259,7 @@ pub fn ssh_effective() -> Vec<Finding> {
     }
 
     let cfg = String::from_utf8_lossy(&out.stdout);
-    let get = |key: &str| -> Option<String> {
-        cfg.lines()
-            .find_map(|l| l.strip_prefix(key)?.trim().to_string().into())
-    };
-
-    let mut findings = Vec::new();
-
-    if let Some(v) = get("permitrootlogin") {
-        // no = best; prohibit-password / without-password = key-only (warn); yes = fail
-        let mut f = match v.as_str() {
-            "no" => Finding::pass("SSH-001", "PermitRootLogin", v.clone()),
-            "prohibit-password" | "without-password" => {
-                Finding::warn("SSH-001", "PermitRootLogin", v.clone())
-            }
-            _ => Finding::fail("SSH-001", "PermitRootLogin", v.clone()),
-        };
-        f.provenance = Some(Provenance {
-            path: "(effective, sshd -T)".into(),
-            line: None,
-        });
-        findings.push(f);
-    }
-
-    if let Some(v) = get("passwordauthentication") {
-        let mut f = if v == "no" {
-            Finding::pass("SSH-002", "PasswordAuthentication", v.clone())
-        } else {
-            Finding::fail("SSH-002", "PasswordAuthentication", v.clone())
-        };
-        f.provenance = Some(Provenance {
-            path: "(effective, sshd -T)".into(),
-            line: None,
-        });
-        findings.push(f);
-    }
+    let mut findings = parse_sshd_effective(&cfg);
 
     if findings.is_empty() {
         findings.push(
@@ -753,6 +855,150 @@ mod tests {
         let j = serde_json::to_string(&f).unwrap();
         assert!(j.contains("\"status\":\"pass\""));
         assert!(j.contains("SSH-001"));
+    }
+
+    fn by_id<'a>(findings: &'a [Finding], id: &str) -> &'a Finding {
+        findings
+            .iter()
+            .find(|f| f.id == id)
+            .unwrap_or_else(|| panic!("missing finding {id}"))
+    }
+
+    #[test]
+    fn ssh003_flags_empty_passwords_allowed() {
+        let cfg = "\
+port 22
+passwordauthentication no
+permitemptypasswords yes
+";
+        let findings = parse_sshd_effective(cfg);
+        let f = by_id(&findings, "SSH-003");
+        assert_eq!(f.status, Status::Fail);
+        assert_eq!(f.value.as_deref(), Some("yes"));
+    }
+
+    #[test]
+    fn ssh004_maps_maxauthtries_to_severity() {
+        assert_eq!(
+            by_id(&parse_sshd_effective("maxauthtries 3\n"), "SSH-004").status,
+            Status::Pass
+        );
+        assert_eq!(
+            by_id(&parse_sshd_effective("maxauthtries 6\n"), "SSH-004").status,
+            Status::Warn
+        );
+        assert_eq!(
+            by_id(&parse_sshd_effective("maxauthtries 10\n"), "SSH-004").status,
+            Status::Fail
+        );
+    }
+
+    #[test]
+    fn ssh005_warns_on_x11_forwarding() {
+        assert_eq!(
+            by_id(&parse_sshd_effective("x11forwarding yes\n"), "SSH-005").status,
+            Status::Warn
+        );
+        assert_eq!(
+            by_id(&parse_sshd_effective("x11forwarding no\n"), "SSH-005").status,
+            Status::Pass
+        );
+    }
+
+    #[test]
+    fn ssh006_warns_when_no_allowlist_is_set() {
+        assert_eq!(
+            by_id(&parse_sshd_effective("permitrootlogin no\n"), "SSH-006").status,
+            Status::Warn
+        );
+        assert_eq!(
+            by_id(&parse_sshd_effective("allowusers deploy\n"), "SSH-006").status,
+            Status::Pass
+        );
+        assert_eq!(
+            by_id(&parse_sshd_effective("allowgroups wheel\n"), "SSH-006").status,
+            Status::Pass
+        );
+    }
+
+    #[test]
+    fn ssh007_flags_non_loopback_listen_address() {
+        assert_eq!(
+            by_id(
+                &parse_sshd_effective("listenaddress 127.0.0.1:22\n"),
+                "SSH-007"
+            )
+            .status,
+            Status::Pass
+        );
+        assert_eq!(
+            by_id(
+                &parse_sshd_effective("listenaddress 0.0.0.0:22\n"),
+                "SSH-007"
+            )
+            .status,
+            Status::Warn
+        );
+        assert_eq!(
+            by_id(&parse_sshd_effective("port 22\n"), "SSH-007").status,
+            Status::Skip
+        );
+    }
+
+    #[test]
+    fn ssh008_warns_on_known_broken_primitives() {
+        let weak = parse_sshd_effective("ciphers 3des-cbc,aes256-ctr\n");
+        assert_eq!(by_id(&weak, "SSH-008").status, Status::Warn);
+        assert!(by_id(&weak, "SSH-008")
+            .value
+            .as_deref()
+            .unwrap_or_default()
+            .contains("3des-cbc"));
+
+        let clean = parse_sshd_effective(
+            "kexalgorithms curve25519-sha256\nciphers chacha20-poly1305@openssh.com\nmacs hmac-sha2-512-etm@openssh.com\n",
+        );
+        assert_eq!(by_id(&clean, "SSH-008").status, Status::Pass);
+    }
+
+    #[test]
+    fn ssh001_maps_permitrootlogin_to_severity() {
+        assert_eq!(
+            by_id(&parse_sshd_effective("permitrootlogin no\n"), "SSH-001").status,
+            Status::Pass
+        );
+        assert_eq!(
+            by_id(
+                &parse_sshd_effective("permitrootlogin prohibit-password\n"),
+                "SSH-001"
+            )
+            .status,
+            Status::Warn
+        );
+        assert_eq!(
+            by_id(&parse_sshd_effective("permitrootlogin yes\n"), "SSH-001").status,
+            Status::Fail
+        );
+    }
+
+    #[test]
+    fn ssh002_maps_passwordauthentication_to_severity() {
+        assert_eq!(
+            by_id(
+                &parse_sshd_effective("passwordauthentication no\n"),
+                "SSH-002"
+            )
+            .status,
+            Status::Pass
+        );
+        assert_eq!(
+            by_id(
+                &parse_sshd_effective("passwordauthentication yes\n"),
+                "SSH-002"
+            )
+            .status,
+            Status::Fail
+        );
     }
 
     #[test]
