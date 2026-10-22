@@ -7,9 +7,9 @@ Legend: ✅ implemented · 📋 planned
 
 ---
 
-## Implemented (v0.1.0 — 19 checks)
+## Implemented (v0.1.1 — 25 checks)
 
-### SSH effective configuration — ✅ (2 checks)
+### SSH effective configuration — ✅ (8 checks)
 
 Resolves the effective `sshd` configuration via `sshd -T` (the daemon's own view,
 after all includes and drop-ins) and reports the values that actually apply.
@@ -18,15 +18,21 @@ after all includes and drop-ins) and reports the values that actually apply.
 |---|---|---|
 | `SSH-001` | `PermitRootLogin` | `no` passes; `prohibit-password` / `without-password` warns; anything else fails |
 | `SSH-002` | `PasswordAuthentication` | `no` passes; `yes` fails |
+| `SSH-003` | `PermitEmptyPasswords` | `no` passes; anything else fails |
+| `SSH-004` | `MaxAuthTries` | `≤ 4` passes; `5–6` warns; `≥ 7` fails (CIS benchmark) |
+| `SSH-005` | `X11Forwarding` | `no` passes; `yes` warns |
+| `SSH-006` | `AllowUsers` / `AllowGroups` | an allowlist passes; neither set warns (any account may attempt auth) |
+| `SSH-007` | `ListenAddress` | loopback-only passes; any non-loopback address warns; unset skips (OpenSSH default binds every interface) |
+| `SSH-008` | Weak crypto | warns only on clearly broken primitives (`arcfour*`, `3des-cbc`, `hmac-md5*`, `diffie-hellman-group1-sha1`, `diffie-hellman-group-exchange-sha1`), naming the offending entries |
 
 Source: `sshd -T`.
 
-> `sshd -T` reads host keys, so this check usually requires root. Without it the
-> check returns `Skip` with a reason — never reported as a failure.
+`SSH-008` is deliberately narrow: `*-cbc` ciphers and `diffie-hellman-group14-sha1`
+still appear in stock defaults on several distributions, so flagging them would
+report every stock host. The list is the set we are willing to call broken.
 
-> **Not implemented yet:** `PermitEmptyPasswords`, `X11Forwarding`, `MaxAuthTries`,
-> and allowed cipher/MAC/KEX lists. `sshd -T` exposes all of them; the checks are
-> planned, not present.
+> `sshd -T` reads host keys, so these checks usually require root. Without it the
+> check returns `Skip` with a reason — never reported as a failure.
 
 ### Atomic / ostree / bootc deployment — ✅ (4 checks)
 

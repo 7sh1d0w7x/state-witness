@@ -20,7 +20,7 @@ It reports what the running system **actually enforces** — `sshd -T`, `sysctl 
 the live packet filter, real `/etc/passwd` and `/etc/shadow` — and cites where each
 value came from. It does not read a config file and assume it is in effect.
 
-**Status:** v0.1.0 · 5 commands · 19 checks · text and JSON output.
+**Status:** `main` (post-v0.1.0) · 5 commands · 25 checks · text and JSON output.
 
 ---
 
@@ -138,12 +138,12 @@ is not "the tool broke".
 
 ## What it checks (v0.1.0)
 
-19 checks across 5 commands. Every finding carries `provenance`: the command or
+25 checks across 5 commands. Every finding carries `provenance`: the command or
 file that produced the value.
 
 | Command | Checks | Source |
 |---|---|---|
-| `ssh` | `PermitRootLogin`, `PasswordAuthentication` | `sshd -T` |
+| `ssh` | `PermitRootLogin`, `PasswordAuthentication`, `PermitEmptyPasswords`, `MaxAuthTries`, `X11Forwarding`, `AllowUsers`/`AllowGroups`, `ListenAddress`, weak crypto | `sshd -T` |
 | `sysctl` | IP forwarding, ASLR, reverse-path filtering, `dmesg_restrict`, `kptr_restrict`, Yama `ptrace_scope`, TCP syncookies | `sysctl -n` |
 | `firewall` | nftables ruleset, ufw state, firewalld state | `nft list ruleset`, `ufw status`, `firewall-cmd --state` |
 | `users` | extra uid-0 accounts, `NOPASSWD` sudoers entries, empty password fields | `/etc/passwd`, `/etc/sudoers`, `/etc/shadow` |
@@ -167,7 +167,7 @@ requires resolving include/drop-in chains and is not implemented in v0.1.0; the
 
 Stated plainly, so you can decide whether the tool fits:
 
-- **Focused, not exhaustive.** 19 checks. It is not a compliance framework and
+- **Focused, not exhaustive.** 25 checks. It is not a compliance framework and
   not a SCAP implementation.
 - **No remediation.** `state-witness` never modifies the host. It reports; changes
   are yours to apply.
