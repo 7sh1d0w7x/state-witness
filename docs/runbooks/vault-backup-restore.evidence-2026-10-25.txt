@@ -1,0 +1,62 @@
+Vault backup and verified restore — execution
+Date: 2026-10-25 22:04 EET
+Host: Bazzite (Fedora 42), restic 0.17.3, source ~/opencode/dev
+
+$ du -sh --exclude=target --exclude=node_modules --exclude=.smart-env --exclude=backups .
+218M	.
+
+# excluded, and why
+projects/state-witness/target ... 580M (build artifacts)
+.smart-env ...................... 32M  (index cache)
+backups ......................... 113M (existing archives)
+
+$ openssl rand -base64 24 > ~/.config/restic/vault.pass
+$ chmod 600 ~/.config/restic/vault.pass
+$ restic init
+created restic repository 8e2... at /mnt/data/backup/vault-restic
+
+$ restic backup "$HOME/opencode/dev" \
+    --exclude target --exclude node_modules --exclude .smart-env \
+    --exclude 'backups/*' --exclude '*.iso' --exclude '*.tgz' \
+    --tag vault --quiet
+exit 0
+
+$ restic snapshots --compact
+52ecaa07  2026-10-25 22:04:19  bazzite  vault   208.350 MiB
+  1 snapshots
+dimensiune repo: 114M pe disc
+
+$ restic stats --mode raw-data
+Total Size: 112.411 MiB
+
+$ restic check
+check snapshots, trees and blobs
+[0:00] 100.00%  1 / 1 snapshots
+no errors were found
+
+# restore test — three files, checksum comparison
+$ restic restore latest --target /tmp/opencode/restore-test --include ".../INDEX.md"
+✅ INDEX.md (sha256 identic)
+✅ personal/neuro/interoceptie-tensiune-nesimtita.md (sha256 identic)
+✅ projects/state-witness/docs/runbooks/firewall-baseline.md (sha256 identic)
+
+# second run through the script (~/opencode/dev/scripts/vault-backup.sh)
+$ vault-backup.sh
+backup ok — vezi /home/7sh1d0w7x/.local/state/restic/backup-2026-10-25.log
+
+$ tail -3 ~/.local/state/restic/backup-2026-10-25.log
+=== 2026-10-25T22:12:40+02:00 backup start
+=== 2026-10-25T22:12:43+02:00 backup ok
+
+$ restic snapshots --compact
+21d26e9f  2026-10-25 22:12:40  bazzite  vault   208.351 MiB
+  2 snapshots
+
+# schedule
+$ systemctl --user enable --now vault-backup.timer
+$ systemctl --user list-timers vault-backup
+NEXT                        LEFT      UNIT                ACTIVATES
+Mon 2026-10-26 00:11:52 EET 1h 59min  vault-backup.timer  vault-backup.service
+
+Open risk at the end of this run: the repository is on the same physical disk as the
+source. Deletion recovery is demonstrated; disk-failure recovery is not.
