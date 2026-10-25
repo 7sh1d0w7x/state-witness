@@ -1,0 +1,50 @@
+Firewall baseline — persistence test
+Date: 2026-10-25
+Host: Fedora 42 cloud image, nftables 1.1.1, QEMU/KVM, user-mode net, serial console.
+
+Why a third run: the persistence step in run 2 was written from a Debian habit and
+did not survive a reboot.
+
+$ sudo nft list ruleset | sudo tee /etc/nftables.conf >/dev/null
+$ sudo systemctl enable --now nftables.service
+$ sudo reboot
+# after reboot:
+$ sudo nft list ruleset | head -8
+(no output — the ruleset is empty)
+
+Diagnosis:
+$ systemctl cat nftables.service | grep ExecStart
+ExecStart=/sbin/nft -f /etc/sysconfig/nftables.conf
+# Fedora reads /etc/sysconfig/nftables.conf; /etc/nftables.conf is the Debian path.
+# The service was "active (exited)" and loaded an empty file: no error, no rules.
+
+$ sudo cat /etc/sysconfig/nftables.conf
+# Uncomment the include statement here to load the default config sample
+# in /etc/nftables for nftables service.
+#include "/etc/nftables/main.nft"
+# To customize, either edit the samples in /etc/nftables, append further
+# commands to the end of this file or overwrite it after first service
+# start by calling: 'nft list ruleset >/etc/sysconfig/nftables.conf'.
+
+Correct sequence:
+$ sudo nft -f /tmp/baseline.nft
+$ sudo nft list ruleset | sudo tee /etc/sysconfig/nftables.conf >/dev/null
+$ sudo systemctl restart nftables && systemctl is-active nftables
+active
+$ sudo reboot
+
+# after reboot — no manual load:
+$ sudo nft list ruleset | head -8
+table inet filter {
+        chain input {
+                type filter hook input priority filter; policy drop;
+                ct state established,related accept
+                iif "lo" accept
+                ip protocol icmp accept
+                ip6 nexthdr ipv6-icmp accept
+                tcp dport 22 accept
+
+Note: the first connection after reboot failed with
+"kex_exchange_identification: read: Connection reset by peer" because sshd had not
+started yet. The second attempt succeeded. A reboot test needs a retry loop, not a
+single attempt.

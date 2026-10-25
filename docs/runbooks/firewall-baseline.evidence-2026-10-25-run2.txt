@@ -1,0 +1,62 @@
+Firewall baseline — lockout and recovery, second attempt
+Date: 2026-10-25T11:07:07Z
+Why a second attempt: appending a drop rule after 'tcp dport 22 accept' has no
+effect — nftables evaluates rules in order and the first match wins.
+
+$ sudo nft list ruleset | head -8   # baseline is loaded
+table inet filter {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ct state established,related accept
+		iif "lo" accept
+		ip protocol icmp accept
+		ip6 nexthdr ipv6-icmp accept
+		tcp dport 22 accept
+
+$ ATEMPT 1 (wrong): sudo nft add rule ... ip saddr 10.0.2.2 tcp dport 22 drop  → appended
+added
+
+$ ssh ... # expected to fail, actually still works
+STILL IN — drop rule never matched
+ssh exit code: 0
+
+$ remove the useless rule, then insert at the TOP instead
+		ip saddr 10.0.2.2 tcp dport 22 drop # handle 9
+	}
+}
+inserted at top
+table inet filter {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ip saddr 10.0.2.2 tcp dport 22 drop
+		ct state established,related accept
+		iif "lo" accept
+		ip protocol icmp accept
+		ip6 nexthdr ipv6-icmp accept
+		tcp dport 22 accept
+	}
+}
+
+$ ssh ... # now it must FAIL
+Connection timed out during banner exchange
+ssh exit code: 255
+
+$ console: sudo nft flush ruleset   # recovery, on the serial console
+sudo nft flush ruleset && echo RECOVERED
+[?2004lRECOVERED
+[?2004h[lab@ssh-runbook ~]$
+
+$ ssh ... 'echo back-in'   # access restored
+back-in
+ssh exit code: 0
+
+$ re-apply the baseline (final state)
+table inet filter {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ct state established,related accept
+		iif "lo" accept
+		ip protocol icmp accept
+		ip6 nexthdr ipv6-icmp accept
+		tcp dport 22 accept
+	}
