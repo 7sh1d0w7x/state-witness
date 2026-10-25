@@ -1,0 +1,93 @@
+Firewall baseline — test run
+Date: 2026-10-25T11:06:33Z
+Host: Fedora 42 cloud image (nftables 1.1.1), QEMU/KVM, user-mode net, console via serial
+
+$ sudo nft list ruleset   # before
+(empty = no ruleset)
+
+$ sudo ss -tlnp | grep ':22 '   # what must stay reachable
+LISTEN 0      128          0.0.0.0:22        0.0.0.0:*    users:(("sshd",pid=913,fd=7))            
+LISTEN 0      128             [::]:22           [::]:*    users:(("sshd",pid=913,fd=8))            
+
+$ cat > /tmp/baseline.nft  (default-deny inbound, allow SSH + established + loopback + ICMP)
+table inet filter {
+  chain input {
+    type filter hook input priority 0; policy drop;
+    ct state established,related accept
+    iif lo accept
+    ip protocol icmp accept
+    ip6 nexthdr ipv6-icmp accept
+    tcp dport 22 accept
+  }
+  chain forward { type filter hook forward priority 0; policy drop; }
+  chain output  { type filter hook output  priority 0; policy accept; }
+}
+
+$ sudo nft -c -f /tmp/baseline.nft   # check syntax BEFORE loading (atomic load)
+syntax ok
+
+$ sudo nft -f /tmp/baseline.nft   # atomic load
+table inet filter {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ct state established,related accept
+		iif "lo" accept
+		ip protocol icmp accept
+		ip6 nexthdr ipv6-icmp accept
+		tcp dport 22 accept
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+	}
+
+	chain output {
+		type filter hook output priority filter; policy accept;
+	}
+}
+
+$ ssh ... 'echo still-in'   # does the existing path survive?
+still-in
+
+$ sudo nft add rule inet filter input ip saddr 10.0.2.2 tcp dport 22 drop   # deliberate lockout
+rule added
+
+$ ssh ... # after the lockout rule (must FAIL)
+should-not-arrive
+ssh exit code: 0
+
+$ console: sudo nft flush ruleset   # recovery path, typed on the serial console
+sudo nft flush ruleset && echo RECOVERED
+[?2004lRECOVERED
+[?2004h[lab@ssh-runbook ~]$
+sudo nft list ruleset; echo '(empty = flushed)'
+[?2004l(empty = flushed)
+[?2004h[lab@ssh-runbook ~]$
+
+$ ssh ... 'echo back-in'   # access restored?
+back-in
+ssh exit code: 0
+
+$ re-apply baseline (persist path): sudo nft -f /tmp/baseline.nft
+table inet filter {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ct state established,related accept
+		iif "lo" accept
+		ip protocol icmp accept
+		ip6 nexthdr ipv6-icmp accept
+		tcp dport 22 accept
+
+$ sudo nft list ruleset   # final state
+table inet filter {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		ct state established,related accept
+		iif "lo" accept
+		ip protocol icmp accept
+		ip6 nexthdr ipv6-icmp accept
+		tcp dport 22 accept
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
