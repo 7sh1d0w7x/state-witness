@@ -10,8 +10,8 @@ connections and ICMP are allowed. Outbound stays open.
 separate changes.
 
 **Last executed:** 2026-10-25 · Fedora 42 cloud image · nftables 1.1.1 · QEMU/KVM VM
-with a serial console (two runs: the first exposed a rule-ordering mistake, the second
-proved lockout and recovery).
+with a serial console (three runs: a rule-ordering mistake, a lockout and recovery, then
+a persistence step that failed because it wrote to the wrong file).
 
 **Portability:** nftables is the default on Fedora/RHEL/Debian/Arch. On hosts running
 `firewalld` or `ufw`, do not mix them with a raw ruleset — pick one owner for the
@@ -155,15 +155,47 @@ prevent. Nothing later in this runbook helps.
 
 ## 6. Persist, only now
 
+The path is distribution-specific, and guessing it silently produces an empty ruleset
+after reboot. Ask the unit which file it actually reads:
+
 ```sh
-sudo nft list ruleset | sudo tee /etc/nftables.conf >/dev/null
-sudo systemctl enable --now nftables.service
-sudo systemctl status nftables.service --no-pager | head -5
-sudo reboot            # optional: prove it survives a boot
+systemctl cat nftables.service | grep ExecStart
 ```
 
-After a reboot, repeat §3 with a new connection. A ruleset that does not survive a
-reboot is a suggestion.
+On Fedora/RHEL the answer is:
+
+```
+ExecStart=/sbin/nft -f /etc/sysconfig/nftables.conf
+```
+
+On Debian/Ubuntu it is `/etc/nftables.conf`. Write to whichever one the unit prints:
+
+```sh
+sudo nft list ruleset | sudo tee /etc/sysconfig/nftables.conf >/dev/null   # Fedora
+sudo systemctl restart nftables && systemctl is-active nftables
+sudo reboot
+```
+
+Then, **after** the reboot and without loading anything by hand:
+
+```sh
+sudo nft list ruleset | head -8
+```
+
+Expected: the same rules. If the ruleset is empty and the service says `active
+(exited)`, you wrote to a file nothing reads — go back to `systemctl cat`.
+
+> This happened. Run 2 wrote `/etc/nftables.conf`, rebooted, and found an empty ruleset
+> with no error anywhere. `systemctl cat` named the real path. That is why the check
+> comes first now.
+
+Two smaller traps from the same run:
+
+- `/tmp` is cleared on reboot. A ruleset file kept there is gone exactly when you want
+  to re-apply it; keep it under `/root` if it must survive.
+- The first SSH attempt right after a reboot can fail with
+  `kex_exchange_identification: read: Connection reset by peer` while sshd starts. Retry
+  before concluding the firewall is wrong.
 
 ---
 
@@ -205,6 +237,7 @@ Then verify from a new connection, not the old one.
 |---|---|---|
 | 1 | appended `drop` after `accept` had no effect — SSH still worked (exit 0) | `firewall-baseline.evidence-2026-10-25-run1.txt` |
 | 2 | `insert` at top blocks (`exit 255`), console `flush` recovers, access restored | `firewall-baseline.evidence-2026-10-25-run2.txt` |
+| 3 | persistence failed on `/etc/nftables.conf`; `systemctl cat` named `/etc/sysconfig/nftables.conf`; after reboot the rules load | `firewall-baseline.evidence-2026-10-25-run3.txt` |
 
 Environment: Fedora 42 cloud image, nftables 1.1.1, QEMU/KVM, user-mode networking,
 serial console. The client address is `10.0.2.2` because of user-mode NAT; on a real
@@ -218,6 +251,8 @@ network it is the address the server sees, not the one your laptop believes it h
   none of which this runbook covers.
 - The host was disposable and the console was tested before the change. On a host
   where the console is untested, step 1 stops the procedure.
+- Persistence was tested on Fedora only. The Debian path (`/etc/nftables.conf`) is
+  documented from the unit file's convention, not executed here.
 
 ---
 
