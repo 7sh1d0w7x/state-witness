@@ -20,7 +20,7 @@ It reports what the running system **actually enforces** — `sshd -T`, `sysctl 
 the live packet filter, real `/etc/passwd` and `/etc/shadow` — and cites where each
 value came from. It does not read a config file and assume it is in effect.
 
-**Status:** `main` (post-v0.1.0) · 5 commands · 25 checks · text and JSON output.
+**Status:** v0.2.0 · 5 commands · 25 checks · text and JSON output.
 
 ---
 

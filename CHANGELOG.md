@@ -7,6 +7,8 @@ Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
 ### Fixed
 - `--json` applies the same exit-code policy as text output. The JSON path
   printed the report and returned before the exit code was computed, so
