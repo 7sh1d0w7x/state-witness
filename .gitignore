@@ -1,6 +1,9 @@
 # intern — NU se urcă public
 internal/
 
+# editor backups
+*.bak
+
 # Rust
 /target
 **/*.rs.bk
