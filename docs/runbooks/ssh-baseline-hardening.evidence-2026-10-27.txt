@@ -1,0 +1,45 @@
+# Evidence — ssh-baseline-hardening.md
+# Host: Ubuntu 26.04, OpenSSH_10.2p1, QEMU/KVM VM (192.168.122.50)
+# Note: sections 1-2 also show a second drop-in left by a filename typo
+#       ('00=hardening.conf'); it was read by sshd like any other .conf file.
+#       It was deleted before the final state was recorded.
+#
+# A1 — SSH hardening (X11Forwarding, MaxAuthTries, AllowUsers)
+# data: 2026-10-27 21:49 EET · VM: ulab (Ubuntu 26.04, 192.168.122.50)
+
+## 1. drop-in-ul (singurul fișier de hardening)
+$ ls -l /etc/ssh/sshd_config.d/
+total 12
+-rw-r--r-- 1 root root 47 Oct 27 19:49 00-hardening.conf
+-rw------- 1 root root 27 Oct 26 16:17 50-cloud-init.conf
+-rw-r--r-- 1 root root 26 Oct 16 16:30 60-cloudimg-settings.conf
+
+$ cat /etc/ssh/sshd_config.d/00-hardening.conf
+MaxAuthTries 3
+AllowUsers lab
+X11Forwarding no
+
+## 2. configurația efectivă (sshd -T)
+$ sudo sshd -T | grep -E "^(maxauthtries|allowusers|x11forwarding)"
+maxauthtries 3
+x11forwarding no
+allowusers lab
+
+## 3. sintaxa (validare)
+
+$ sudo sshd -t && echo OK
+OK
+
+## 4.## 4. test: contul propriu intră
+$ ssh ulab whoami
+lab
+
+## 5. test: root refuzat
+$ ssh -o PubkeyAuthentication=no -o PasswordAuthentication=yes root@192.168.122.50
+root@192.168.122.50: Permission denied (publickey,password).
+   (exit 255)
+
+## 6. test: user inexistent refuzat (AllowUsers)
+$ ssh ghost@192.168.122.50
+ghost@192.168.122.50: Permission denied (publickey,password).
+   (exit 255)

@@ -1,0 +1,38 @@
+# Evidence — sudoers-least-privilege.md
+# Host: Ubuntu 26.04, QEMU/KVM VM (192.168.122.50)
+# Note: the first two interactive visudo attempts saved nothing; the procedure
+#       in the runbook (copy -> sed -> visudo -c -f -> install) is the one that
+#       was executed, and its result is what section 6 shows.
+#
+# A6 — users & sudo · transcript
+# data: 2026-10-27 21:21 EET · VM: ulab (Ubuntu 26.04, 192.168.122.50)
+
+## 1. grupul admin (gol = ușă latentă)
+$ getent group admin
+admin:x:107:
+
+## 2. liniile care dau putere, după modificare
+$ sudo grep -n "^%" /etc/sudoers
+52:%sudo	ALL=(ALL:ALL) ALL
+
+## 3. sintaxa
+$ sudo visudo -c
+/etc/sudoers: parsed OK
+
+## 4. accesul propriu (intact)
+$ sudo -l -U lab
+User lab may run the following commands on lab:
+    (ALL : ALL) ALL
+
+## 5. permisiunile fișierului
+$ ls -l /etc/sudoers
+-r--r----- 1 root root 1779 Oct 27 19:15 /etc/sudoers
+
+## 6. diferența față de copia dinainte (o singură linie)
+$ sudo diff /etc/sudoers.bak-2026-10-27 /etc/sudoers
+50d49
+< %admin ALL=(ALL) ALL
+
+## 7. conturi cu uid 0
+$ awk -F: '$3==0 {print $1}' /etc/passwd
+root

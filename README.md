@@ -155,6 +155,10 @@ status · **[`docs/DESIGN.md`](docs/DESIGN.md)** — architecture.
 📘 **[`docs/runbooks/`](docs/runbooks/)** — procedures that use the tool for a real
 change, with the evidence from the run that produced them.
 
+📗 **[`docs/case-studies/`](docs/case-studies/)** — the same sessions written up for
+a reader who was not there: what the count found, what was changed, what the proof
+looked like.
+
 ### What "provenance" means here
 
 Each finding names **the command or file its value came from** — for example

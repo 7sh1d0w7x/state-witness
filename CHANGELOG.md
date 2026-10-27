@@ -7,6 +7,16 @@ Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `docs/runbooks/ssh-baseline-hardening.md` — drop-in baseline (X11, MaxAuthTries,
+  AllowUsers) with the four-connection proof and the renamed-file trap that made a
+  second drop-in invisible to everything except `sshd`.
+- `docs/runbooks/sudoers-least-privilege.md` — removing a privilege-bearing rule
+  from `sudoers` through a validated copy, with `diff` and `sudo -l` as the proof
+  that nothing else moved.
+- `docs/case-studies/2026-10-27-four-doors-to-root.md` — the session both runbooks
+  came from, written up for a reader who was not there.
+
 ## [0.2.0] - 2026-10-25
 
 ### Fixed
