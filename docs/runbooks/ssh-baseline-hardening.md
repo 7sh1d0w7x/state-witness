@@ -108,13 +108,22 @@ X11Forwarding no
 ```
 
 > [!warning] A file with a wrong name is still read
-> `sshd` includes **every** file in `sshd_config.d/` that ends in `.conf`,
-> whatever else the name contains. A typo that produces `00=hardening.conf`
-> creates a second, invisible-looking drop-in that is parsed like any other.
+> `sshd` includes **every** file that matches the `Include` glob, whatever else the
+> name contains. On the hosts this was run on the glob is
+> `Include /etc/ssh/sshd_config.d/*.conf` (line 24 of the shipped `sshd_config`),
+> so `00=hardening.conf` was read while `00=hardening.conf.bak` would not have been.
+> A typo creates a second, invisible-looking drop-in that is parsed like any other.
 > During the run that produced this runbook, two such files existed at once and
 > `sshd -T` showed values from the one nobody was looking at.
 >
-> The check that catches it is `ls -l "$DIR"` — not `cat "$DROPIN"`.
+> Confirm the glob on the host before relying on either half of this:
+>
+> ```sh
+> grep -n '^[[:space:]]*Include' /etc/ssh/sshd_config
+> ```
+>
+> The check that catches a duplicated drop-in is `ls -l "$DIR"` — not
+> `cat "$DROPIN"`.
 
 ---
 
@@ -191,6 +200,10 @@ while a renamed drop-in keeps enforcing the change.
   value even if the reload silently failed. Pair it with a new connection (§5).
 - **`sshd -t` passes on an empty or missing file.** A drop-in that was never
   written validates cleanly and changes nothing. `cat` after every write.
+- **The filename only matters through the glob.** A file that does not match
+  `Include` is ignored with no warning — so `00-hardening.conf.bak`, left behind by
+  a copy, looks like a broken config while having no effect at all. Both halves
+  surprise people: the matching name you did not expect, and the ignored one you did.
 
 ---
 
