@@ -104,9 +104,10 @@ $ sudo ls -l /etc/ssh/sshd_config.d/
 -rw-r--r-- 1 root root 17  '00=hardening.conf'    ← parsed like any other
 ```
 
-`sshd` includes every file in that directory ending in `.conf`. The name inside
-the quotes — a `=` where a `-` belonged — made it invisible to `cat` on the
-expected path and completely visible to the daemon.
+`sshd` includes every file matching its `Include` glob — here
+`/etc/ssh/sshd_config.d/*.conf`, which is why a name with a `=` in it was still
+read, while a `.bak` copy would not have been. The name inside the quotes made the
+file invisible to `cat` on the expected path and completely visible to the daemon.
 
 Nothing was broken by this. The change was working; it was working from a file
 nobody knew about. That is the difference between "the setting is applied" and
