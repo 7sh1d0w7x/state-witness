@@ -133,6 +133,26 @@ sudo systemctl reload ssh     # sshd on Fedora/RHEL
 sudo sshd -T | grep -E '^(maxauthtries|x11forwarding|allowusers)'
 ```
 
+> [!note] On socket-activated hosts the reload is a no-op
+> Ubuntu 24.04+ ships `ssh.socket`, which owns port 22 and starts `ssh.service`
+> per connection. Two things look wrong and are not:
+>
+> ```
+> $ systemctl is-enabled ssh
+> disabled                  ← the socket is what is enabled
+> $ systemctl is-active ssh
+> active
+> $ systemctl list-sockets | grep :22
+> 0.0.0.0:22   ssh.socket   ssh.service
+> ```
+>
+> Each new connection starts a daemon that reads the configuration at that moment,
+> so the change is in effect without reloading anything. `reload` is harmless, but
+> the proof in §5 still has to come from a new connection.
+>
+> The consequence that matters: to stop SSH you stop the **socket**, not the
+> service — `sudo systemctl disable --now ssh.socket`.
+
 Expected:
 
 ```
@@ -189,6 +209,10 @@ while a renamed drop-in keeps enforcing the change.
   nothing anyone can observe — which is why it is safe to do first.
 - **`sshd -T` reads the files, not the running daemon.** It will show the new
   value even if the reload silently failed. Pair it with a new connection (§5).
+- **`ssh.socket` can outlive your expectations.** On socket-activated hosts,
+  `systemctl stop ssh` stops the running connection handlers, not the listener;
+  the port reopens on the next connection. Stop `ssh.socket` instead, and check
+  with `systemctl list-sockets`.
 - **`sshd -t` passes on an empty or missing file.** A drop-in that was never
   written validates cleanly and changes nothing. `cat` after every write.
 
