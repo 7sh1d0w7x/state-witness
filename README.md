@@ -2,7 +2,7 @@
 
 ![state-witness](assets/banner.png)
 
-[![status](https://img.shields.io/badge/status-v0.1.0-blue)](CHANGELOG.md)
+[![status](https://img.shields.io/badge/status-v0.2.0-blue)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green)](#license)
 [![rust](https://img.shields.io/badge/rust-1.88%2B-orange)](https://www.rust-lang.org)
 [![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)](#contributing)
@@ -136,7 +136,7 @@ is not "the tool broke".
 
 ---
 
-## What it checks (v0.1.0)
+## What it checks (v0.2.0)
 
 25 checks across 5 commands. Every finding carries `provenance`: the command or
 file that produced the value.
@@ -165,7 +165,7 @@ Each finding names **the command or file its value came from** — for example
 `(effective, sysctl -n)` or `/etc/passwd`.
 
 It does **not** yet emit a line number inside the file that set the value. That
-requires resolving include/drop-in chains and is not implemented in v0.1.0; the
+requires resolving include/drop-in chains and is not implemented in v0.2.0; the
 `line` field exists in the JSON and is currently always `null`.
 
 ---
@@ -210,21 +210,17 @@ Finding = id, title, status (pass|warn|fail|skip), value, provenance
 
 ## AI usage & authorship
 
-This project is **spec-driven and human-owned**. AI tools are used as an
-assistant, not an author.
+AI assistance is used in this project. The repository documents verification steps,
+known limitations, and what remains unverified.
 
-- **Workflow:** I write the spec and tests → AI helps implement to spec → I review
-  every line I don't fully understand → I verify with `cargo test`, `cargo clippy`
-  and manual checks.
-- **What AI is used for:** boilerplate (CLI parsing, serde, docs), test
-  scaffolding, explanation of unfamiliar APIs.
-- **What AI is not used for:** security-critical logic, trust boundaries,
-  architecture decisions.
-- **Accountability:** I can explain and justify every design and code decision.
-  Rationale lives in `ADR.md`.
-- **Provenance:** AI-assisted commits say so in the commit message.
-
-> The rule: **AI drafts, the human owns.** If I can't explain a line, it doesn't ship.
+- **Verification:** `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`
+  and `cargo test` (see `CONTRIBUTING.md`), plus the transcripts shipped next to each
+  runbook in [`docs/runbooks/`](docs/runbooks/).
+- **Known limitations:** [`docs/CHECKS.md`](docs/CHECKS.md) separates implemented
+  checks from planned ones, and the roadmap below is explicitly "planned, not
+  implemented".
+- **Unverified:** no independent audit, and no third party has reproduced these
+  results.
 
 ---
 
