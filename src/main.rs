@@ -1,6 +1,7 @@
 //! state-witness CLI.
 
 use clap::{Parser, Subcommand};
+use std::io::IsTerminal;
 
 use state_witness::{
     firewall_effective, ostree_effective, ssh_effective, sysctl_effective, users_effective,
@@ -23,6 +24,10 @@ const EXIT_ERROR: i32 = 2;
                   and understands ostree/bootc deployments — with provenance."
 )]
 struct Cli {
+    /// Suppress the one-line attribution footer (text output only).
+    #[arg(long, global = true)]
+    quiet: bool,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -98,11 +103,28 @@ fn print_text(findings: &[Finding]) {
     }
 }
 
+/// One line, once, only when a human is watching.
+///
+/// Rules that keep it from becoming noise:
+///   · never in `--json` — a machine consumer must be able to pipe stdout into a parser
+///   · never when stdout is redirected (a file or a pipe) — only on a terminal
+///   · never with `--quiet`
+fn print_footer(quiet: bool, json: bool) {
+    if quiet || json || !std::io::stdout().is_terminal() {
+        return;
+    }
+    println!(
+        "{} {} \u{00b7} by 7sh1d0w7x \u{00b7} 7sh1d0w7x.github.io",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+}
+
 /// Render the findings and return the process exit code.
 ///
 /// stdout carries the report only; diagnostics go to stderr, so a JSON consumer
 /// can pipe stdout straight into a parser.
-fn run(findings: &[Finding], json: bool) -> i32 {
+fn run(findings: &[Finding], json: bool, quiet: bool) -> i32 {
     if json {
         match serde_json::to_string_pretty(findings) {
             Ok(rendered) => println!("{rendered}"),
@@ -113,6 +135,7 @@ fn run(findings: &[Finding], json: bool) -> i32 {
         }
     } else {
         print_text(findings);
+        print_footer(quiet, json);
     }
 
     exit_code_for(findings)
@@ -133,7 +156,7 @@ fn main() {
         }
     };
 
-    std::process::exit(run(&findings, json));
+    std::process::exit(run(&findings, json, cli.quiet));
 }
 
 #[cfg(test)]

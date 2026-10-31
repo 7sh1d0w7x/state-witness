@@ -67,6 +67,7 @@ state-witness firewall     # active packet filter
 state-witness users        # uid-0 accounts, NOPASSWD, empty passwords
 
 state-witness <command> --json   # machine-readable output
+state-witness <command> --quiet  # no attribution footer (text output only)
 ```
 
 Real output from a Bazzite host:
