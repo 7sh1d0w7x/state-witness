@@ -16,9 +16,19 @@
 An **effective-state** security auditor for Linux — with extra awareness of
 immutable/atomic hosts (Fedora Atomic, Bazzite, `bootc` / RHEL Image Mode).
 
-It reports what the running system **actually enforces** — `sshd -T`, `sysctl -n`,
-the live packet filter, real `/etc/passwd` and `/etc/shadow` — and cites where each
-value came from. It does not read a config file and assume it is in effect.
+It reports the **effective** value of each setting, and says which mechanism produced
+it. The mechanisms differ, and the difference matters:
+
+| source | what it proves |
+|---|---|
+| `sshd -T` | the configuration `sshd` evaluates from disk, with the relevant connection parameters. It does not query the running daemon and does not prove that a reload happened. |
+| `sysctl -n` | the kernel value in force right now. |
+| `nft list ruleset` | the ruleset loaded in the kernel right now. |
+| `/etc/passwd`, `/etc/shadow` | the file contents on disk, read directly. |
+
+So "it does not read a config file and assume it is in effect" is true for the first
+three. For the account checks it is exactly what happens, which is why they are
+labelled as file reads and not as runtime state.
 
 **Status:** v0.2.0 · 5 commands · 25 checks · text and JSON output.
 
