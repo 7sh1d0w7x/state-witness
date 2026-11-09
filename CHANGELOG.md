@@ -5,9 +5,11 @@ All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.2.1] - 2026-11-09
 
 ### Added
+- Prebuilt static `x86_64-unknown-linux-musl` binary attached to the release, so
+  installing no longer requires a Rust toolchain. SHA-256 published alongside it.
 - `docs/COMPARISON.md` — `state-witness`, Lynis and OpenSCAP side by side: the
   question each answers, source of truth, scope, output, remediation and license.
 - `docs/EXAMPLE-REPORT.md` — an unedited non-root run on Bazzite, with the skips
