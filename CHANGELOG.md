@@ -8,6 +8,11 @@ Versioning: [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `docs/COMPARISON.md` — `state-witness`, Lynis and OpenSCAP side by side: the
+  question each answers, source of truth, scope, output, remediation and license.
+- `docs/EXAMPLE-REPORT.md` — an unedited non-root run on Bazzite, with the skips
+  explained and a section on what the run does not prove.
+- `cargo install --git …` as the one-line install in the README.
 - `docs/runbooks/ssh-baseline-hardening.md` — drop-in baseline (X11, MaxAuthTries,
   AllowUsers) with the four-connection proof and the renamed-file trap that made a
   second drop-in invisible to everything except `sshd`.
@@ -16,6 +21,12 @@ Versioning: [SemVer](https://semver.org/).
   that nothing else moved.
 - `docs/case-studies/2026-10-27-four-doors-to-root.md` — the session both runbooks
   came from, written up for a reader who was not there.
+
+### Fixed
+- `atomic`: when `ostree admin config-diff` cannot run (for example without root),
+  `OSTREE-004` now returns a `skip` with a reason instead of being omitted. The
+  documented contract says a check that cannot run is a skip, never a missing
+  finding.
 
 ## [0.2.0] - 2026-10-25
 
