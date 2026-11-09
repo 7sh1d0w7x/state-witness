@@ -2,7 +2,7 @@
 
 ![state-witness](assets/banner.png)
 
-[![status](https://img.shields.io/badge/status-v0.2.1-blue)](CHANGELOG.md)
+[![status](https://img.shields.io/badge/status-v0.2.2-blue)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green)](#license)
 [![rust](https://img.shields.io/badge/rust-1.88%2B-orange)](https://www.rust-lang.org)
 [![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)](#contributing)
@@ -30,7 +30,7 @@ So "it does not read a config file and assume it is in effect" is true for the f
 three. For the account checks it is exactly what happens, which is why they are
 labelled as file reads and not as runtime state.
 
-**Status:** v0.2.1 · 5 commands · 25 checks · text and JSON output.
+**Status:** v0.2.2 · 5 commands · 25 checks · text and JSON output.
 
 ---
 
@@ -159,7 +159,7 @@ is not "the tool broke".
 
 ---
 
-## What it checks (v0.2.1)
+## What it checks (v0.2.2)
 
 25 checks across 5 commands. Every finding carries `provenance`: the command or
 file that produced the value.
@@ -193,7 +193,7 @@ Each finding names **the command or file its value came from** — for example
 `(effective, sysctl -n)` or `/etc/passwd`.
 
 It does **not** yet emit a line number inside the file that set the value. That
-requires resolving include/drop-in chains and is not implemented in v0.2.1; the
+requires resolving include/drop-in chains and is not implemented in v0.2.2; the
 `line` field exists in the JSON and is currently always `null`.
 
 ---
