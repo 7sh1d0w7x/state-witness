@@ -39,9 +39,12 @@ labelled as file reads and not as runtime state.
 ```bash
 # prebuilt static binary (x86_64, no Rust needed)
 curl -fsSL https://github.com/7sh1d0w7x/state-witness/releases/latest/download/state-witness-x86_64-linux-musl \
-  -o state-witness
-chmod +x state-witness
-sudo install -m 0755 state-witness /usr/local/bin/state-witness
+  -o state-witness-x86_64-linux-musl
+curl -fsSL https://github.com/7sh1d0w7x/state-witness/releases/latest/download/state-witness-x86_64-linux-musl.sha256 \
+  -o state-witness.sha256
+sha256sum -c state-witness.sha256        # must print: OK
+chmod +x state-witness-x86_64-linux-musl
+sudo install -m 0755 state-witness-x86_64-linux-musl /usr/local/bin/state-witness
 
 # or from source (needs a Rust toolchain)
 cargo install --git https://github.com/7sh1d0w7x/state-witness
