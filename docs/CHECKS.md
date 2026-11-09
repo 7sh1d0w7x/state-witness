@@ -7,7 +7,7 @@ Legend: ✅ implemented · 📋 planned
 
 ---
 
-## Implemented (v0.1.1 — 25 checks)
+## Implemented (v0.2.0 — 25 checks)
 
 ### SSH effective configuration — ✅ (8 checks)
 

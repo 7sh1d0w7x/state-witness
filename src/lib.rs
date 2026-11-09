@@ -497,11 +497,11 @@ pub fn ostree_effective() -> Vec<Finding> {
     }
 
     // `/etc` drift vs the deployment (`/usr/etc`).
-    if let Ok(out) = std::process::Command::new("ostree")
+    match std::process::Command::new("ostree")
         .args(["admin", "config-diff"])
         .output()
     {
-        if out.status.success() {
+        Ok(out) if out.status.success() => {
             let drift = parse_config_diff(&String::from_utf8_lossy(&out.stdout));
             let mut f = if drift.is_empty() {
                 Finding::pass("OSTREE-004", "Preserved /etc drift", "none")
@@ -512,6 +512,17 @@ pub fn ostree_effective() -> Vec<Finding> {
                     format!("{} modified path(s) vs /usr/etc", drift.len()),
                 )
             };
+            f.provenance = provenance("(effective, ostree admin config-diff)");
+            findings.push(f);
+        }
+        _ => {
+            // `config-diff` needs root. A check that cannot run is a skip with a
+            // reason, not a missing finding — same contract as every other check.
+            let mut f = Finding::skip(
+                "OSTREE-004",
+                "Preserved /etc drift",
+                "ostree admin config-diff failed (try as root)",
+            );
             f.provenance = provenance("(effective, ostree admin config-diff)");
             findings.push(f);
         }

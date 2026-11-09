@@ -37,7 +37,10 @@ labelled as file reads and not as runtime state.
 ## Install
 
 ```bash
-# from source (works today)
+# one-liner (needs a Rust toolchain; installs to ~/.cargo/bin)
+cargo install --git https://github.com/7sh1d0w7x/state-witness
+
+# or from a clone
 git clone https://github.com/7sh1d0w7x/state-witness
 cd state-witness
 cargo build --release
@@ -163,6 +166,11 @@ file that produced the value.
 📄 **[`docs/CHECKS.md`](docs/CHECKS.md)** — per-check detail and implementation
 status · **[`docs/DESIGN.md`](docs/DESIGN.md)** — architecture.
 
+📊 **[`docs/COMPARISON.md`](docs/COMPARISON.md)** — where this fits next to Lynis
+and OpenSCAP, without pretending to be either.
+🧾 **[`docs/EXAMPLE-REPORT.md`](docs/EXAMPLE-REPORT.md)** — a real run, annotated,
+including what the skips do and do not prove.
+
 📘 **[`docs/runbooks/`](docs/runbooks/)** — procedures that use the tool for a real
 change, with the evidence from the run that produced them.
 
@@ -198,9 +206,10 @@ Stated plainly, so you can decide whether the tool fits:
   it says so. A report full of `skip` findings means "not checked", not "clean".
 
 Other tools exist in this space with broader rule sets and formal compliance
-content. `state-witness` does not claim parity with them; it targets a narrower
-question — *what does this host enforce right now, and where did that value come
-from* — with awareness of immutable hosts.
+content — [`docs/COMPARISON.md`](docs/COMPARISON.md) puts the three side by side.
+`state-witness` does not claim parity with them; it targets a narrower question —
+*what does this host enforce right now, and where did that value come from* — with
+awareness of immutable hosts.
 
 ---
 
