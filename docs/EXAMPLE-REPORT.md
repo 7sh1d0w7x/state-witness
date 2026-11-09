@@ -1,12 +1,12 @@
 # Example report
 
-A real, unedited run of v0.2.0 on a desktop, published so you can see what the
+A real, unedited run of v0.2.1 on a desktop, published so you can see what the
 output looks like **including what it does not prove**.
 
 - **Host:** Bazzite (Fedora Atomic), kernel `7.2.15-ogc1.1.fc45.x86_64`
 - **When:** 2026-11-09, 16:09 UTC
 - **User:** `7sh1d0w7x` — **not root**
-- **Binary:** release build of `v0.2.0`
+- **Binary:** release build of `v0.2.1`
 
 The run below is one pass of all five commands. Skips are part of the result, not
 an error: two checks need root on this host and say so.
@@ -143,7 +143,7 @@ output ends with one attribution line:
 $ state-witness firewall
 ✓ firewalld: running
   └─ from (effective, firewall-cmd --state)
-state-witness 0.2.0 · by 7sh1d0w7x · 7sh1d0w7x.github.io
+state-witness 0.2.1 · by 7sh1d0w7x · 7sh1d0w7x.github.io
 ```
 
 Use `--quiet` to suppress it.
