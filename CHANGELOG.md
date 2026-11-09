@@ -5,6 +5,16 @@ All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [SemVer](https://semver.org/).
 
+## [0.2.2] - 2026-11-09
+
+### Fixed
+- SSH checks on OpenSSH 10.x. `sshd -T` now prints the configuration keywords
+  capitalised (`PermitRootLogin no`, `ListenAddress 0.0.0.0:22`), while the parser
+  only matched lowercase. On Fedora 45 / OpenSSH 10.5, five of the eight SSH
+  findings were dropped and `AllowUsers` was reported as unset without the config
+  having been read. Key matching is now case-insensitive, with a regression test
+  built from a real OpenSSH 10.5 transcript.
+
 ## [0.2.1] - 2026-11-09
 
 ### Added

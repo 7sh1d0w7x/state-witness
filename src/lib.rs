@@ -100,9 +100,19 @@ impl Finding {
 ///
 /// Pure so the checks can be tested against fixtures without a running daemon.
 pub fn parse_sshd_effective(cfg: &str) -> Vec<Finding> {
+    // `sshd -T` printed lowercase keys (`permitrootlogin no`) for years;
+    // OpenSSH 10.x prints the config keywords with their original capitalisation
+    // (`PermitRootLogin no`). Compare case-insensitively so both work.
+    let pairs: Vec<(String, String)> = cfg
+        .lines()
+        .filter_map(|line| {
+            let (key, value) = line.trim().split_once(char::is_whitespace)?;
+            Some((key.to_ascii_lowercase(), value.trim().to_string()))
+        })
+        .collect();
+
     let get = |key: &str| -> Option<String> {
-        cfg.lines()
-            .find_map(|l| l.strip_prefix(key)?.trim().to_string().into())
+        pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
     };
 
     let mut findings = Vec::new();
@@ -175,12 +185,10 @@ pub fn parse_sshd_effective(cfg: &str) -> Vec<Finding> {
         );
     }
 
-    let listens: Vec<String> = cfg
-        .lines()
-        .filter_map(|l| {
-            l.strip_prefix("listenaddress ")
-                .map(|v| v.trim().to_string())
-        })
+    let listens: Vec<String> = pairs
+        .iter()
+        .filter(|(k, _)| k == "listenaddress")
+        .map(|(_, v)| v.clone())
         .collect();
     let is_loopback = |addr: &str| {
         addr.starts_with("127.") || addr.starts_with("[::1]") || addr.starts_with("::1")
@@ -970,6 +978,35 @@ permitemptypasswords yes
             "kexalgorithms curve25519-sha256\nciphers chacha20-poly1305@openssh.com\nmacs hmac-sha2-512-etm@openssh.com\n",
         );
         assert_eq!(by_id(&clean, "SSH-008").status, Status::Pass);
+    }
+
+    #[test]
+    fn parses_openssh_10_capitalised_keys() {
+        // OpenSSH 10.x `sshd -T` prints the config keywords capitalised:
+        // `PermitRootLogin no`, `ListenAddress 0.0.0.0:22`. The parser must not
+        // depend on the casing.
+        let cfg = "\
+Port 22
+ListenAddress 0.0.0.0:22
+PermitRootLogin no
+PasswordAuthentication no
+PermitEmptyPasswords no
+MaxAuthTries 3
+X11Forwarding no
+AllowUsers alice
+Ciphers aes256-ctr,3des-cbc
+MACs hmac-sha2-256
+KexAlgorithms curve25519-sha256
+";
+        let f = parse_sshd_effective(cfg);
+        assert_eq!(by_id(&f, "SSH-001").status, Status::Pass);
+        assert_eq!(by_id(&f, "SSH-002").status, Status::Pass);
+        assert_eq!(by_id(&f, "SSH-003").status, Status::Pass);
+        assert_eq!(by_id(&f, "SSH-004").status, Status::Pass);
+        assert_eq!(by_id(&f, "SSH-005").status, Status::Pass);
+        assert_eq!(by_id(&f, "SSH-006").status, Status::Pass);
+        assert_eq!(by_id(&f, "SSH-007").status, Status::Warn);
+        assert_eq!(by_id(&f, "SSH-008").status, Status::Warn);
     }
 
     #[test]

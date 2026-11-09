@@ -53,7 +53,7 @@ the same check again in CI so it cannot drift back.
 
 ## What `state-witness` does not do
 
-- No compliance control mapping. There is no NIST, CRA or BSI mapping in v0.2.0.
+- No compliance control mapping. There is no NIST, CRA or BSI mapping as of v0.2.2.
 - No remediation. It never writes to the host.
 - 25 checks, not a framework. See [`CHECKS.md`](CHECKS.md) for the exact list.
 - No SARIF output yet, and no line numbers inside the file that set a value — the
