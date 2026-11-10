@@ -5,6 +5,12 @@ All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- GitHub release workflow: pushing a `v*` tag builds the static musl binary,
+  writes its SHA-256 and uploads both to the release (or replaces existing assets).
+
 ## [0.2.2] - 2026-11-09
 
 ### Fixed
