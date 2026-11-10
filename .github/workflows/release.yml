@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Test
+        run: cargo test --all
+
+      - name: Build static binary
+        run: cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Package
+        run: |
+          cp target/x86_64-unknown-linux-musl/release/state-witness \
+            state-witness-x86_64-linux-musl
+          sha256sum state-witness-x86_64-linux-musl \
+            > state-witness-x86_64-linux-musl.sha256
+          file state-witness-x86_64-linux-musl
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release view "$tag" >/dev/null 2>&1 || \
+            gh release create "$tag" --title "$tag" --generate-notes
+          gh release upload "$tag" \
+            state-witness-x86_64-linux-musl \
+            state-witness-x86_64-linux-musl.sha256 \
+            --clobber
