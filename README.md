@@ -117,6 +117,20 @@ $ state-witness atomic
 `sshd -T` reads host keys, so the `ssh` check usually needs root. Without it the
 check returns `Skip` **with a reason** — never a failure.
 
+### In CI
+
+A composite action wraps the release binary; the step fails on findings (exit 1).
+
+```yaml
+- uses: 7sh1d0w7x/state-witness@main
+  with:
+    command: ssh
+    args: --json
+```
+
+`fail-on-findings: false` reports without failing. `version: latest` (the
+default) follows the latest release; pin a tag once the action ships in one.
+
 ### Exit codes
 
 The same policy applies to text and JSON output:

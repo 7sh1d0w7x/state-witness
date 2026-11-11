@@ -24,3 +24,10 @@ jobs:
         run: cargo test --all
       - name: Build
         run: cargo build --release
+
+      - name: Action smoke test
+        uses: ./
+        with:
+          command: sysctl
+          args: --json
+          fail-on-findings: false
