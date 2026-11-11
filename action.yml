@@ -1,0 +1,43 @@
+name: state-witness
+description: Run effective-state Linux checks and fail on findings.
+author: 7sh1d0w7x
+branding:
+  icon: shield
+  color: blue
+inputs:
+  command:
+    description: "ssh, sysctl, firewall, users or atomic"
+    required: false
+    default: sysctl
+  args:
+    description: "Extra arguments (default: --json)"
+    required: false
+    default: --json
+  version:
+    description: "Release tag, or latest"
+    required: false
+    default: latest
+  fail-on-findings:
+    description: "Fail the step when the tool exits 1"
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        version="${{ inputs.version }}"
+        if [ "$version" = "latest" ]; then
+          base="https://github.com/7sh1d0w7x/state-witness/releases/latest/download"
+        else
+          base="https://github.com/7sh1d0w7x/state-witness/releases/download/${version}"
+        fi
+        bin="${RUNNER_TEMP}/state-witness"
+        curl -fsSL "${base}/state-witness-x86_64-linux-musl" -o "$bin"
+        chmod +x "$bin"
+        if [ "${{ inputs.fail-on-findings }}" = "false" ]; then
+          "$bin" "${{ inputs.command }}" ${{ inputs.args }} || true
+        else
+          "$bin" "${{ inputs.command }}" ${{ inputs.args }}
+        fi
